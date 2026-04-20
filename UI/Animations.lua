@@ -13,6 +13,34 @@ local function ClampDuration(duration, fallback)
   return d
 end
 
+local function ConfigureAlphaAnimation(alpha, frame, fromAlpha, toAlpha)
+  if not alpha then return false end
+
+  local from = tonumber(fromAlpha)
+  local to = tonumber(toAlpha)
+
+  if from == nil then
+    from = (frame and frame.GetAlpha and frame:GetAlpha()) or 1
+  end
+  if to == nil then
+    to = from
+  end
+
+  if alpha.SetFromAlpha and alpha.SetToAlpha then
+    alpha:SetFromAlpha(from)
+    alpha:SetToAlpha(to)
+    return true
+  end
+
+  if alpha.SetChange then
+    if frame and frame.SetAlpha then frame:SetAlpha(from) end
+    alpha:SetChange(to - from)
+    return true
+  end
+
+  return false
+end
+
 local function CreateAlphaAnimation(frame, fromAlpha, toAlpha, duration)
   if not frame or not frame.CreateAnimationGroup then
     if frame and frame.SetAlpha then frame:SetAlpha(toAlpha or 1) end
@@ -23,8 +51,12 @@ local function CreateAlphaAnimation(frame, fromAlpha, toAlpha, duration)
 
   local group = frame:CreateAnimationGroup()
   local alpha = group:CreateAnimation("Alpha")
-  alpha:SetFromAlpha(fromAlpha)
-  alpha:SetToAlpha(toAlpha)
+  if not ConfigureAlphaAnimation(alpha, frame, fromAlpha, toAlpha) then
+    if frame.SetAlpha then frame:SetAlpha(toAlpha or 1) end
+    if toAlpha and toAlpha > 0 and frame.Show then frame:Show() end
+    if toAlpha == 0 and frame.Hide then frame:Hide() end
+    return nil
+  end
   alpha:SetDuration(ClampDuration(duration, DEFAULT_COLOR_FADE))
   group:SetScript("OnFinished", function()
     if toAlpha == 0 and frame.Hide then frame:Hide() end
@@ -74,8 +106,9 @@ function LeafVE_Animations:SlideIn(frame, direction, duration)
   move:SetDuration(d)
 
   local alpha = group:CreateAnimation("Alpha")
-  alpha:SetFromAlpha(0)
-  alpha:SetToAlpha(1)
+  if not ConfigureAlphaAnimation(alpha, frame, 0, 1) and frame.SetAlpha then
+    frame:SetAlpha(1)
+  end
   alpha:SetDuration(d)
 
   group:Play()
@@ -99,8 +132,9 @@ function LeafVE_Animations:GlowPulse(frame, color, duration)
   local alpha = group:CreateAnimation("Alpha")
   alpha:SetOrder(1)
   alpha:SetDuration(ClampDuration(duration, DEFAULT_GLOW_PULSE))
-  alpha:SetFromAlpha(0.04)
-  alpha:SetToAlpha(0.16)
+  if not ConfigureAlphaAnimation(alpha, frame, 0.04, 0.16) and frame.SetAlpha then
+    frame:SetAlpha(0.16)
+  end
 
   group:Play()
   frame._leafGlowPulse = group
