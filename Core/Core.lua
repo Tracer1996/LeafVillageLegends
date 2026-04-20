@@ -9,6 +9,25 @@ LeafVE.version = "15.0"
 LeafVE.guildBankOwner = "Methllyy"
 LeafVE.guildBankEnabled = false
 LeafVE.raidSignupsEnabled = false
+
+local function SafeRequire(moduleName)
+  if type(require) ~= "function" then
+    return nil
+  end
+  local ok, result = pcall(require, moduleName)
+  if ok then
+    return result
+  end
+  return nil
+end
+
+local Colors = LeafVE.Colors or _G.LeafVE_Colors or SafeRequire("Utils.Colors") or {}
+local FrameSkins = LeafVE.FrameSkins or _G.LeafVE_FrameSkins or SafeRequire("UI.FrameSkins") or {}
+local Animations = LeafVE.Animations or _G.LeafVE_Animations or SafeRequire("UI.Animations") or {}
+
+LeafVE.Colors = LeafVE.Colors or Colors
+LeafVE.FrameSkins = LeafVE.FrameSkins or FrameSkins
+LeafVE.Animations = LeafVE.Animations or Animations
 -- Minimum peer version whose synced data is accepted.  Bump this whenever a
 -- version introduces a breaking data-format change so that older clients
 -- cannot corrupt the shared leaderboard / badge data.
@@ -328,6 +347,81 @@ local THEME = {
   border = styleColors.border or {0.28, 0.28, 0.30, 1.00},
   soft = styleColors.soft or {0.18, 0.18, 0.20, 1.00},
 }
+
+local function ResolvePaletteColor(color, fallback)
+  local source = color or fallback or {r = 1, g = 1, b = 1, a = 1}
+  if source.r then
+    return source.r, source.g or 1, source.b or 1, source.a or 1
+  end
+  return source[1] or 1, source[2] or 1, source[3] or 1, source[4] or 1
+end
+
+local function CallFrameSkin(methodName, ...)
+  local handler = FrameSkins and FrameSkins[methodName]
+  if type(handler) == "function" then
+    return handler(FrameSkins, ...)
+  end
+  local globalHandler = _G[methodName]
+  if type(globalHandler) == "function" then
+    return globalHandler(...)
+  end
+end
+
+local function ApplyWindowSkin(frame, title)
+  if not frame then return end
+  CallFrameSkin("SkinWindow", frame, title)
+  local bg = (Colors.PRIMARY and Colors.PRIMARY.darkest) or nil
+  local border = (Colors.TEXT and Colors.TEXT.gold) or (Colors.PRIMARY and Colors.PRIMARY.accent) or nil
+  local br, bgc, bb = ResolvePaletteColor(bg, {r = 0.05, g = 0.08, b = 0.18})
+  local rr, rg, rb = ResolvePaletteColor(border, {r = 1.00, g = 0.84, b = 0.00})
+  if frame.SetBackdropColor then
+    frame:SetBackdropColor(br, bgc, bb, 0.95)
+  end
+  if frame.SetBackdropBorderColor then
+    frame:SetBackdropBorderColor(rr, rg, rb, 0.95)
+  end
+end
+
+local function ApplyPanelSkin(frame, color)
+  if not frame then return end
+  CallFrameSkin("SkinPanel", frame, color or (Colors.PRIMARY and Colors.PRIMARY.medium))
+end
+
+local function ApplyButtonSkin(frame, style)
+  if not frame or frame._leafCoreButtonSkinned then return end
+  CallFrameSkin("SkinButton", frame, style or "info")
+  frame._leafCoreButtonSkinned = true
+end
+
+local function ApplyTabSkin(frame, isActive)
+  if not frame then return end
+  CallFrameSkin("SkinTab", frame, isActive and true or false)
+end
+
+local function ApplyScrollSkin(frame)
+  if not frame or frame._leafCoreScrollSkinned then return end
+  CallFrameSkin("SkinScrollArea", frame)
+  frame._leafCoreScrollSkinned = true
+end
+
+local function ApplyFrameSkinTree(root)
+  if not root then return end
+  local function Walk(frame)
+    if not frame then return end
+    if frame.IsObjectType then
+      if frame:IsObjectType("Button") then
+        ApplyButtonSkin(frame, "info")
+      elseif frame:IsObjectType("ScrollFrame") then
+        ApplyScrollSkin(frame)
+      end
+    end
+    local children = {frame:GetChildren()}
+    for i = 1, table.getn(children) do
+      Walk(children[i])
+    end
+  end
+  Walk(root)
+end
 
 WORK_ORDER_PROFESSION_ORDER = {
   "Alchemy",
@@ -1246,14 +1340,7 @@ function WeekStartTSFromKey(wk)
 end
 
 local function SkinFrameModern(f)
-  f:SetBackdrop({
-    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 16,
-    insets = {left = 4, right = 4, top = 4, bottom = 4}
-  })
-  f:SetBackdropColor(THEME.bg[1], THEME.bg[2], THEME.bg[3], THEME.bg[4])
-  f:SetBackdropBorderColor(THEME.border[1], THEME.border[2], THEME.border[3], THEME.border[4])
+  ApplyWindowSkin(f, "Leaf Village Legends")
   if not f._accentStripe then
     local stripe = f:CreateTexture(nil, "BORDER")
     stripe:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -44)
@@ -1273,8 +1360,7 @@ local function CreateInset(parent)
     tile = true, tileSize = 16, edgeSize = 12,
     insets = {left = 3, right = 3, top = 3, bottom = 3}
   })
-  inset:SetBackdropColor(THEME.insetBG[1], THEME.insetBG[2], THEME.insetBG[3], THEME.insetBG[4])
-  inset:SetBackdropBorderColor(THEME.soft[1], THEME.soft[2], THEME.soft[3], 1)
+  ApplyPanelSkin(inset, Colors.PRIMARY and Colors.PRIMARY.medium)
   return inset
 end
 
@@ -1286,8 +1372,7 @@ local function CreateGradientInset(parent)
     tile = true, tileSize = 16, edgeSize = 12,
     insets = {left = 3, right = 3, top = 3, bottom = 3}
   })
-  inset:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
-  inset:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+  ApplyPanelSkin(inset, Colors.PRIMARY and Colors.PRIMARY.dark)
   local gradient = inset:CreateTexture(nil, "BACKGROUND")
   gradient:SetPoint("TOPLEFT", inset, "TOPLEFT", 4, -4)
   gradient:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -4, 4)
@@ -1357,6 +1442,7 @@ end
 
 local function SkinButtonAccent(btn)
   if not btn then return end
+  ApplyButtonSkin(btn, btn.leafButtonStyle or "info")
   btn:SetScript("OnEnter", function()
     local fs = btn.GetFontString and btn:GetFontString()
     if fs then
@@ -11005,6 +11091,7 @@ local function TabButton(parent, text, name)
   local b = CreateFrame("Button", name, parent, "UIPanelButtonTemplate")
   b:SetHeight(20)
   b:SetText(text)
+  ApplyTabSkin(b, false)
   SkinButtonAccent(b)
   if LEAFVE_UI_MODERN and LEAFVE_UI_MODERN.StyleButton then
     LEAFVE_UI_MODERN:StyleButton(b)
@@ -11413,8 +11500,9 @@ end
 
 function LeafVE.UI:BuildPlayerCard(parent)
   if self.card then return end
-  
+
   local c = CreateGradientInset(parent)
+  CallFrameSkin("SkinBorder", c, Colors.TEXT and Colors.TEXT.gold, 2)
   self.card = c
   c:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -10, -10)
   c:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -10, 10)
@@ -11423,7 +11511,10 @@ function LeafVE.UI:BuildPlayerCard(parent)
   local title = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOPLEFT", c, "TOPLEFT", 10, -10)
   title:SetText("Player Card")
-  title:SetTextColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3])
+  do
+    local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.gold, {r = 1, g = 0.84, b = 0})
+    title:SetTextColor(tr, tg, tb)
+  end
 
   local portraitContainer = CreateFrame("Frame", nil, c)
   portraitContainer:SetPoint("TOP", c, "TOP", 0, -40)
@@ -11435,8 +11526,8 @@ function LeafVE.UI:BuildPlayerCard(parent)
     tile = true, tileSize = 16, edgeSize = 12,
     insets = {left = 3, right = 3, top = 3, bottom = 3}
   })
+  ApplyPanelSkin(portraitContainer, Colors.PRIMARY and Colors.PRIMARY.dark)
   portraitContainer:SetBackdropColor(0.1, 0.1, 0.15, 0.9)
-  portraitContainer:SetBackdropBorderColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.8)
   self.cardPortraitContainer = portraitContainer
 
   -- Faction-coloured gradient background: single full-area texture (red=Horde, blue=Alliance)
@@ -11467,7 +11558,10 @@ function LeafVE.UI:BuildPlayerCard(parent)
   local portraitTypeText = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   portraitTypeText:SetPoint("TOP", portraitContainer, "BOTTOM", 0, 2)
   portraitTypeText:SetText("")
-  portraitTypeText:SetTextColor(0.7, 0.7, 0.7)
+  do
+    local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.muted_gray, {r = 0.7, g = 0.7, b = 0.7})
+    portraitTypeText:SetTextColor(tr, tg, tb)
+  end
   self.cardPortraitTypeText = portraitTypeText
 
   local specCycleBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
@@ -12561,6 +12655,9 @@ function LeafVE.UI:ShowPlayerCard(playerName)
   local classColor = CLASS_COLORS[class] or {1, 1, 1}
   self.cardName:SetTextColor(classColor[1], classColor[2], classColor[3])
   self.cardClassLevelRank:SetText(string.format("Lvl %s %s\n%s", tostring(level), class, rank))
+  if self.cardPortraitContainer then
+    self.cardPortraitContainer:SetBackdropBorderColor(classColor[1], classColor[2], classColor[3], 0.9)
+  end
 
   if self.cardWorkOrderRepBadgeText then
     local repEntry = LeafVE:GetWorkOrderReputationForPlayer(playerName)
@@ -12653,9 +12750,6 @@ function LeafVE.UI:ShowPlayerCard(playerName)
         self.cardModelBG:SetGradientAlpha("VERTICAL", 0.06, 0.06, 0.08, 1, 0.12, 0.12, 0.16, 1)
       end
       self.cardModelBG:Show()
-    end
-    if self.cardPortraitContainer then
-      self.cardPortraitContainer:SetBackdropBorderColor(THEME.gold[1], THEME.gold[2], THEME.gold[3], 1)
     end
   else
     self.cardModel:Hide()
@@ -18813,17 +18907,16 @@ end
 function UpdateWorkOrderModeButtonVisual(btn, selected)
   if not btn then return end
   btn.isSelected = selected and true or nil
+  ApplyTabSkin(btn, btn.isSelected)
   if selected then
-    btn:SetBackdropColor(THEME.leaf2[1], THEME.leaf2[2], THEME.leaf2[3], 0.92)
-    btn:SetBackdropBorderColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
     if btn.text then
-      btn.text:SetTextColor(1, 1, 1)
+      local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.gold, {r = 1, g = 0.84, b = 0})
+      btn.text:SetTextColor(tr, tg, tb)
     end
   else
-    btn:SetBackdropColor(0.09, 0.09, 0.11, 0.92)
-    btn:SetBackdropBorderColor(0.35, 0.35, 0.4, 0.85)
     if btn.text then
-      btn.text:SetTextColor(0.88, 0.88, 0.88)
+      local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.off_white, {r = 0.88, g = 0.88, b = 0.88})
+      btn.text:SetTextColor(tr, tg, tb)
     end
   end
 end
@@ -18853,6 +18946,8 @@ function CreateWorkOrderModeButton(parent, label)
     UpdateWorkOrderModeButtonVisual(this, this.isSelected)
   end)
 
+  ApplyTabSkin(btn, false)
+  ApplyButtonSkin(btn, "designations")
   UpdateWorkOrderModeButtonVisual(btn, false)
   return btn
 end
@@ -28639,6 +28734,7 @@ function LeafVE.UI:Build()
   self.dragHandle = dragHandle
   
   SkinFrameModern(f)
+  ApplyWindowSkin(f, "Leaf Village Legends")
   if LEAFVE_UI_MODERN and LEAFVE_UI_MODERN.ApplyModernFrame then
     LEAFVE_UI_MODERN:ApplyModernFrame(f)
   end
@@ -28683,13 +28779,23 @@ function LeafVE.UI:Build()
   -- Title (CENTERED, GOLD)
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   title:SetPoint("TOP", f, "TOP", 0, -12)  -- ← CENTERED
-  title:SetText("|cFFFFD700Leaf Village Legends|r")  -- ← GOLD COLOR
-  
+  title:SetText("Leaf Village Legends")
+  do
+    local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.gold, {r = 1, g = 0.84, b = 0})
+    title:SetTextColor(tr, tg, tb)
+  end
+  if f._leafTitle and f._leafTitle ~= title then
+    f._leafTitle:Hide()
+  end
+
   -- Subtitle description (centered below title)
   local sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   sub:SetPoint("TOP", title, "BOTTOM", 0, -2)
   sub:SetText("Auto-tracking: Login + Group Points")
-  sub:SetTextColor(0.7, 0.7, 0.7)
+  do
+    local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.muted_gray, {r = 0.7, g = 0.7, b = 0.7})
+    sub:SetTextColor(tr, tg, tb)
+  end
   
   -- Emblem (left side, keep existing)
   local emblem = f:CreateTexture(nil, "ARTWORK")
@@ -28703,7 +28809,11 @@ function LeafVE.UI:Build()
   -- Created by credit (FAR RIGHT)
   local credit = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   credit:SetPoint("TOPRIGHT", f, "TOPRIGHT", -35, -12)
-  credit:SetText("|cFF2DD35CCreated by Methl|r")
+  credit:SetText("Created by Methl")
+  do
+    local tr, tg, tb = ResolvePaletteColor(Colors.TEXT and Colors.TEXT.off_white, {r = 0.92, g = 0.92, b = 0.94})
+    credit:SetTextColor(tr, tg, tb)
+  end
   credit:SetAlpha(0.9)
   
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
@@ -28730,6 +28840,7 @@ function LeafVE.UI:Build()
     self.panels.update = CreateFrame("Frame", nil, self.left)
     self.panels.update:SetAllPoints(self.left)
     BuildUpdatePanel(self.panels.update)
+    ApplyPanelSkin(self.panels.update, Colors.PRIMARY and Colors.PRIMARY.medium)
 
     tabUpdate:SetScript("OnClick", function()
       self.activeTab = "update"
@@ -28745,6 +28856,7 @@ function LeafVE.UI:Build()
     end
 
     f:Hide()
+    ApplyFrameSkinTree(f)
     return
   end
 
@@ -28900,6 +29012,11 @@ function LeafVE.UI:Build()
   self.panels.join = CreateFrame("Frame", nil, self.left)
   self.panels.join:SetAllPoints(self.left)
   BuildJoinPanel(self.panels.join)
+
+  for _, panelFrame in pairs(self.panels) do
+    ApplyPanelSkin(panelFrame, Colors.PRIMARY and Colors.PRIMARY.medium)
+  end
+  ApplyFrameSkinTree(f)
   
   -- Tab click handlers
   self.tabMe:SetScript("OnClick", function()
@@ -29070,6 +29187,30 @@ function LeafVE.UI:Refresh()
       self.tabJoin:Hide()
     else
       self.tabJoin:Show()
+    end
+  end
+
+  local legacyTabSkinMap = {
+    {tab = self.tabWelcome, key = "welcome"},
+    {tab = self.tabMe, key = "me"},
+    {tab = self.tabRoster, key = "roster"},
+    {tab = self.tabLeaderWeek, key = "leaderWeek"},
+    {tab = self.tabLeaderLife, key = "leaderLife"},
+    {tab = self.tabAchievements, key = "achievements"},
+    {tab = self.tabBadges, key = "badges"},
+    {tab = self.tabShoutouts, key = "shoutouts"},
+    {tab = self.tabGuildEvents, key = "guildEvents"},
+    {tab = self.tabHistory, key = "history"},
+    {tab = self.tabLiveHistory, key = "liveHistory"},
+    {tab = self.tabWorkOrderRep, key = "workOrderRep"},
+    {tab = self.tabOptions, key = "options"},
+    {tab = self.tabAdmin, key = "admin"},
+    {tab = self.tabJoin, key = "join"},
+  }
+  for i = 1, table.getn(legacyTabSkinMap) do
+    local entry = legacyTabSkinMap[i]
+    if entry and entry.tab then
+      ApplyTabSkin(entry.tab, self.activeTab == entry.key)
     end
   end
   self:RefreshGroupedNavigation(hasAccess)
