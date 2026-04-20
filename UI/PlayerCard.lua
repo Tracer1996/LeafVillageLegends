@@ -97,7 +97,7 @@ function LeafVE_PlayerCard:Create(parent)
 
   card.subtitleFS = card.identityPane:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   card.subtitleFS:SetPoint("TOPLEFT", card.nameFS, "BOTTOMLEFT", 0, -2)
-  card.subtitleFS:SetPoint("TOPRIGHT", card.identityPane, "TOPRIGHT", -10, -2)
+  card.subtitleFS:SetPoint("TOPRIGHT", card.nameFS, "BOTTOMRIGHT", 0, -2)
   card.subtitleFS:SetJustifyH("LEFT")
   ApplyFont(card.subtitleFS, "card_sub", "Fonts\\ARIALN.TTF", 11, TEXT.secondary)
 

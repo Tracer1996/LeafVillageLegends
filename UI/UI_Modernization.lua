@@ -126,7 +126,6 @@ function LeafVE_UIModernization:CreateSectionHeader(parent, labelText, yOffset)
     LeafVE_Fonts:Apply(label, "section", "")
   else
     label:SetFont("Fonts\\ARIALN.TTF", 10, "")
-    label:SetText(string.upper(labelText or ""))
   end
   local lr, lg, lb = ColorOr((THEME.TEXT and THEME.TEXT.muted), {0.42, 0.46, 0.54, 1})
   label:SetTextColor(lr, lg, lb, 1)
