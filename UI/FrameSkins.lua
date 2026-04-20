@@ -69,7 +69,11 @@ function LeafVE_FrameSkins:SkinBorder(frame, color, thickness)
     frame._leafSkinBorder:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 1, -1)
   end
   EnsureBackdrop(frame._leafSkinBorder, thickness or 1)
-  local r, g, b = ResolveColor(color, QUALITY_COLORS.legendary or QUALITY_COLORS.rare)
+  local borderFallback = QUALITY_COLORS.legendary
+  if borderFallback == nil then
+    borderFallback = QUALITY_COLORS.rare
+  end
+  local r, g, b = ResolveColor(color, borderFallback)
   frame._leafSkinBorder:SetBackdropColor(0, 0, 0, 0)
   frame._leafSkinBorder:SetBackdropBorderColor(r, g, b, 0.95)
   return frame._leafSkinBorder
