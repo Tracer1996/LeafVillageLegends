@@ -32,9 +32,9 @@ end
 local function ApplyPane(frame, bgColor, borderColor, edge)
   EnsureBackdrop(frame, edge or 1)
   local r, g, b = RGBA(bgColor)
-  local br, bgv, bb = RGBA(borderColor)
+  local br, borderG, bb = RGBA(borderColor)
   frame:SetBackdropColor(r, g, b, 1)
-  frame:SetBackdropBorderColor(br, bgv, bb, 1)
+  frame:SetBackdropBorderColor(br, borderG, bb, 1)
 end
 
 function LeafVE_PlayerCard:Create(parent)

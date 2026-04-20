@@ -3,29 +3,29 @@ LeafVE_Fonts = LeafVE_Fonts or {}
 local THEME = LeafVE_Theme or {}
 local TEXT_COLORS = THEME.TEXT or ((LeafVE_Colors and LeafVE_Colors.TEXT_COLORS) or {})
 
-local function C(color, fallback)
+local function ColorOr(color, fallback)
   return color or fallback or {r = 1, g = 1, b = 1}
 end
 
 LeafVE_Fonts.FONTS = {
-  h1 = {path = "Fonts\\FRIZQT__.TTF", size = 18, color = C(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
-  h2 = {path = "Fonts\\FRIZQT__.TTF", size = 14, color = C(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
-  h3 = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = C(TEXT_COLORS.secondary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
+  h1 = {path = "Fonts\\FRIZQT__.TTF", size = 18, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
+  h2 = {path = "Fonts\\FRIZQT__.TTF", size = 14, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
+  h3 = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = ColorOr(TEXT_COLORS.secondary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
 
-  body_normal = {path = "Fonts\\ARIALN.TTF", size = 11, color = C(TEXT_COLORS.primary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
-  body_small = {path = "Fonts\\ARIALN.TTF", size = 10, color = C(TEXT_COLORS.muted, TEXT_COLORS.muted_gray or TEXT_COLORS.muted)},
-  mono = {path = "Fonts\\ARIALN.TTF", size = 10, color = C(TEXT_COLORS.primary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
+  body_normal = {path = "Fonts\\ARIALN.TTF", size = 11, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
+  body_small = {path = "Fonts\\ARIALN.TTF", size = 10, color = ColorOr(TEXT_COLORS.muted, TEXT_COLORS.muted_gray or TEXT_COLORS.muted)},
+  mono = {path = "Fonts\\ARIALN.TTF", size = 10, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
 
-  button = {path = "Fonts\\ARIALN.TTF", size = 11, color = C(TEXT_COLORS.white, TEXT_COLORS.bright_white or TEXT_COLORS.bright), uppercase = true},
-  class_name = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = C(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
-  stat = {path = "Fonts\\ARIALN.TTF", size = 10, color = C(TEXT_COLORS.muted, TEXT_COLORS.muted_gray or TEXT_COLORS.muted)},
-  tooltip_h = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = C(TEXT_COLORS.gold, TEXT_COLORS.primary)},
-  badge_label = {path = "Fonts\\ARIALN.TTF", size = 10, color = C(TEXT_COLORS.secondary, TEXT_COLORS.muted)},
+  button = {path = "Fonts\\ARIALN.TTF", size = 11, color = ColorOr(TEXT_COLORS.white, TEXT_COLORS.bright_white or TEXT_COLORS.bright), uppercase = true},
+  class_name = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
+  stat = {path = "Fonts\\ARIALN.TTF", size = 10, color = ColorOr(TEXT_COLORS.muted, TEXT_COLORS.muted_gray or TEXT_COLORS.muted)},
+  tooltip_h = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = ColorOr(TEXT_COLORS.gold, TEXT_COLORS.primary)},
+  badge_label = {path = "Fonts\\ARIALN.TTF", size = 10, color = ColorOr(TEXT_COLORS.secondary, TEXT_COLORS.muted)},
 
-  header_large = {path = "Fonts\\FRIZQT__.TTF", size = 18, color = C(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
-  header_medium = {path = "Fonts\\FRIZQT__.TTF", size = 14, color = C(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
-  header_small = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = C(TEXT_COLORS.secondary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
-  body_large = {path = "Fonts\\ARIALN.TTF", size = 11, color = C(TEXT_COLORS.primary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
+  header_large = {path = "Fonts\\FRIZQT__.TTF", size = 18, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
+  header_medium = {path = "Fonts\\FRIZQT__.TTF", size = 14, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.bright_white or TEXT_COLORS.bright)},
+  header_small = {path = "Fonts\\FRIZQT__.TTF", size = 12, color = ColorOr(TEXT_COLORS.secondary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
+  body_large = {path = "Fonts\\ARIALN.TTF", size = 11, color = ColorOr(TEXT_COLORS.primary, TEXT_COLORS.off_white or TEXT_COLORS.normal)},
 }
 
 function LeafVE_Fonts:Apply(fontString, styleKey, flags)

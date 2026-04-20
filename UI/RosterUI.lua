@@ -44,8 +44,8 @@ local function ApplyRowVisual(root, row, member, index)
   end
 
   row:SetBackdropColor(r, g, b, 1)
-  local br, bgc, bb = RGBA(BORDER.subtle)
-  row:SetBackdropBorderColor(br, bgc, bb, 0)
+  local br, borderG, bb = RGBA(BORDER.subtle)
+  row:SetBackdropBorderColor(br, borderG, bb, 0)
 
   local ar, ag, ab = RGBA(ACCENT.primary)
   row.leftBar:SetVertexColor(ar, ag, ab, selected and 1 or 0)

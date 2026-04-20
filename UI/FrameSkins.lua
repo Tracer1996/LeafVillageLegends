@@ -18,7 +18,7 @@ local ACCENT = THEME.ACCENT or {
 
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 
-local function R(color, fallback)
+local function ResolveColor(color, fallback)
   local c = color or fallback or {r = 1, g = 1, b = 1, a = 1}
   if c.r then
     return c.r or 1, c.g or 1, c.b or 1, c.a or 1
@@ -59,7 +59,7 @@ function LeafVE_FrameSkins:SkinBorder(frame, color, thickness)
   end
 
   EnsureBackdrop(frame._leafSkinBorder, thickness or 1)
-  local r, g, b = R(color, BORDER.normal)
+  local r, g, b = ResolveColor(color, BORDER.normal)
   frame._leafSkinBorder:SetBackdropColor(0, 0, 0, 0)
   frame._leafSkinBorder:SetBackdropBorderColor(r, g, b, 1)
   return frame._leafSkinBorder
@@ -74,7 +74,7 @@ function LeafVE_FrameSkins:AddGlowEffect(frame, color, intensity)
     glow:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 4, -4)
     frame._leafGlow = glow
   end
-  local r, g, b = R(color, ACCENT.primary)
+  local r, g, b = ResolveColor(color, ACCENT.primary)
   frame._leafGlow:SetVertexColor(r, g, b, intensity or 0.08)
   return frame._leafGlow
 end
@@ -96,8 +96,8 @@ function LeafVE_FrameSkins:AddBevel(frame, topColor, bottomColor)
     frame._leafBevelBottom:SetHeight(1)
   end
 
-  local tr, tg, tb = R(topColor, BORDER.highlight)
-  local br, bg, bb = R(bottomColor, BG.base or BG.darkest)
+  local tr, tg, tb = ResolveColor(topColor, BORDER.highlight)
+  local br, bg, bb = ResolveColor(bottomColor, BG.base or BG.darkest)
   frame._leafBevelTop:SetVertexColor(tr, tg, tb, 0.55)
   frame._leafBevelBottom:SetVertexColor(br, bg, bb, 0.9)
 end
@@ -108,8 +108,8 @@ function LeafVE_FrameSkins:SkinWindow(frame, title, width, height)
   if height then frame:SetHeight(height) end
 
   EnsureBackdrop(frame, 1)
-  local br, bg, bb = R(BG.base or BG.darkest)
-  local er, eg, eb = R(BORDER.normal)
+  local br, bg, bb = ResolveColor(BG.base or BG.darkest)
+  local er, eg, eb = ResolveColor(BORDER.normal)
   frame:SetBackdropColor(br, bg, bb, 0.97)
   frame:SetBackdropBorderColor(er, eg, eb, 1)
 
@@ -131,7 +131,7 @@ function LeafVE_FrameSkins:SkinWindow(frame, title, width, height)
     if LeafVE_Fonts and LeafVE_Fonts.Apply then
       LeafVE_Fonts:Apply(frame._leafTitle, "h1", "OUTLINE")
     end
-    local tr, tg, tb = R(TEXT.gold or ACCENT.gold)
+    local tr, tg, tb = ResolveColor(TEXT.gold or ACCENT.gold)
     frame._leafTitle:SetTextColor(tr, tg, tb, 1)
   end
 
@@ -142,10 +142,10 @@ function LeafVE_FrameSkins:SkinPanel(frame, bgColor, padding)
   if not frame then return end
   EnsureBackdrop(frame, 1)
 
-  local r, g, b = R(bgColor, BG.panel or BG.dark)
-  local br, bgv, bb = R(BORDER.subtle)
+  local r, g, b = ResolveColor(bgColor, BG.panel or BG.dark)
+  local br, borderG, bb = ResolveColor(BORDER.subtle)
   frame:SetBackdropColor(r, g, b, 1)
-  frame:SetBackdropBorderColor(br, bgv, bb, 1)
+  frame:SetBackdropBorderColor(br, borderG, bb, 1)
   frame._leafPadding = padding or 12
   return frame
 end
@@ -223,7 +223,8 @@ function LeafVE_FrameSkins:SkinButton(frame, style)
   if not frame then return end
   EnsureBackdrop(frame, 1)
 
-  local resolved = STYLE_ALIAS[style or ""] or style or "secondary"
+  local requested = style or "secondary"
+  local resolved = STYLE_ALIAS[requested] or requested
   local theme = BUTTON_THEMES[resolved] or BUTTON_THEMES.secondary
   frame._leafButtonTheme = theme
   frame._leafButtonStyle = resolved
@@ -233,11 +234,11 @@ function LeafVE_FrameSkins:SkinButton(frame, style)
     if frame.IsEnabled then enabled = frame:IsEnabled() end
 
     if not enabled then
-      local dr, dg, db = R(STATUS.disabled, {r = 0.278, g = 0.29, b = 0.318})
+      local dr, dg, db = ResolveColor(STATUS.disabled, {r = 0.278, g = 0.29, b = 0.318})
       frame:SetBackdropColor(dr, dg, db, 0.7)
       frame:SetBackdropBorderColor(dr, dg, db, 0.6)
       if frame.GetFontString and frame:GetFontString() then
-        local tr, tg, tb = R(TEXT.muted)
+        local tr, tg, tb = ResolveColor(TEXT.muted)
         frame:GetFontString():SetTextColor(tr, tg, tb, 1)
       end
       if frame._leafGlow then frame._leafGlow:SetVertexColor(0, 0, 0, 0) end
@@ -260,16 +261,16 @@ function LeafVE_FrameSkins:SkinButton(frame, style)
       glowAlpha = 0.04
     end
 
-    local br, bgc, bb = R(bg)
-    local er, eg, eb = R(border)
-    frame:SetBackdropColor(br, bgc, bb, 1)
+    local br, fillG, bb = ResolveColor(bg)
+    local er, eg, eb = ResolveColor(border)
+    frame:SetBackdropColor(br, fillG, bb, 1)
     frame:SetBackdropBorderColor(er, eg, eb, 1)
 
     if frame.GetFontString and frame:GetFontString() then
       if LeafVE_Fonts and LeafVE_Fonts.Apply then
         LeafVE_Fonts:Apply(frame:GetFontString(), "button", "")
       end
-      local tr, tg, tb = R(text)
+      local tr, tg, tb = ResolveColor(text)
       frame:GetFontString():SetTextColor(tr, tg, tb, 1)
     end
 
@@ -306,10 +307,10 @@ end
 function LeafVE_FrameSkins:SkinScrollArea(frame)
   if not frame then return end
   EnsureBackdrop(frame, 1)
-  local r, g, b = R(BG.base or BG.darkest)
-  local br, bgv, bb = R(BORDER.subtle)
+  local r, g, b = ResolveColor(BG.base or BG.darkest)
+  local br, borderG, bb = ResolveColor(BORDER.subtle)
   frame:SetBackdropColor(r, g, b, 1)
-  frame:SetBackdropBorderColor(br, bgv, bb, 1)
+  frame:SetBackdropBorderColor(br, borderG, bb, 1)
   return frame
 end
 
@@ -330,14 +331,14 @@ function LeafVE_FrameSkins:SkinTab(frame, isActive)
   local function ApplyState(state)
     local active = frame._leafTabActive
     if active then
-      local r, g, b = R(BG.elevated or BG.medium)
-      local br, bgv, bb = R(BORDER.normal)
+      local r, g, b = ResolveColor(BG.elevated or BG.medium)
+      local br, borderG, bb = ResolveColor(BORDER.normal)
       frame:SetBackdropColor(r, g, b, 1)
-      frame:SetBackdropBorderColor(br, bgv, bb, 1)
-      local ar, ag, ab = R(BORDER.accent)
+      frame:SetBackdropBorderColor(br, borderG, bb, 1)
+      local ar, ag, ab = ResolveColor(BORDER.accent)
       frame._leafTabAccent:SetVertexColor(ar, ag, ab, 1)
       if frame.GetFontString and frame:GetFontString() then
-        local tr, tg, tb = R(TEXT.primary)
+        local tr, tg, tb = ResolveColor(TEXT.primary)
         frame:GetFontString():SetTextColor(tr, tg, tb, 1)
       end
       return
@@ -349,13 +350,13 @@ function LeafVE_FrameSkins:SkinTab(frame, isActive)
       bgColor = BG.hover or BG.light
       textColor = TEXT.primary
     end
-    local r, g, b = R(bgColor)
-    local br, bgv, bb = R(BORDER.subtle)
+    local r, g, b = ResolveColor(bgColor)
+    local br, borderG, bb = ResolveColor(BORDER.subtle)
     frame:SetBackdropColor(r, g, b, 1)
-    frame:SetBackdropBorderColor(br, bgv, bb, 1)
+    frame:SetBackdropBorderColor(br, borderG, bb, 1)
     frame._leafTabAccent:SetVertexColor(0, 0, 0, 0)
     if frame.GetFontString and frame:GetFontString() then
-      local tr, tg, tb = R(textColor)
+      local tr, tg, tb = ResolveColor(textColor)
       frame:GetFontString():SetTextColor(tr, tg, tb, 1)
     end
   end
@@ -383,7 +384,7 @@ function LeafVE_FrameSkins:SkinProgressBar(frame, color, maxValue)
   if not frame then return end
 
   local fill = color or ACCENT.primary
-  local r, g, b = R(fill)
+  local r, g, b = ResolveColor(fill)
 
   if frame.SetStatusBarTexture then
     frame:SetStatusBarTexture(WHITE)
@@ -395,7 +396,7 @@ function LeafVE_FrameSkins:SkinProgressBar(frame, color, maxValue)
       frame._leafBarBG:SetTexture(WHITE)
       frame._leafBarBG:SetAllPoints(frame)
     end
-    local dr, dg, db = R(BG.base or BG.darkest)
+    local dr, dg, db = ResolveColor(BG.base or BG.darkest)
     frame._leafBarBG:SetVertexColor(dr, dg, db, 1)
   else
     self:SkinPanel(frame, BG.panel or BG.dark)
@@ -409,14 +410,14 @@ function LeafVE_FrameSkins:SkinTooltip(frame)
   if not frame then return end
   EnsureBackdrop(frame, 1)
 
-  local r, g, b = R(BG.base or BG.darkest)
-  local br, bgv, bb = R(BORDER.gold)
+  local r, g, b = ResolveColor(BG.base or BG.darkest)
+  local br, borderG, bb = ResolveColor(BORDER.gold)
   frame:SetBackdropColor(r, g, b, 0.97)
-  frame:SetBackdropBorderColor(br, bgv, bb, 1)
+  frame:SetBackdropBorderColor(br, borderG, bb, 1)
 
   local grad = EnsureFillTexture(frame, "_leafTooltipGradient", "BACKGROUND")
   if grad and grad.SetGradientAlpha then
-    local tr, tg, tb = R(BG.elevated or BG.medium)
+    local tr, tg, tb = ResolveColor(BG.elevated or BG.medium)
     grad:SetGradientAlpha("VERTICAL", tr, tg, tb, 0.15, r, g, b, 0.05)
   end
   return frame

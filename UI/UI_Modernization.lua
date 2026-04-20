@@ -6,13 +6,15 @@ local THEME = LeafVE_Theme or {}
 local TAB_FADE_DURATION = 0.18
 
 local function ColorOr(color, fallback)
+  local fb = fallback or {1, 1, 1, 1}
+  local f1, f2, f3, f4 = fb[1], fb[2], fb[3], fb[4]
   if type(color) == "table" then
     if color.r then
-      return color.r, color.g or 1, color.b or 1, color.a or 1
+      return color.r or f1, color.g or f2, color.b or f3, color.a or f4
     end
-    return color[1], color[2], color[3], color[4]
+    return color[1] or f1, color[2] or f2, color[3] or f3, color[4] or f4
   end
-  return fallback[1], fallback[2], fallback[3], fallback[4]
+  return f1, f2, f3, f4
 end
 
 function LeafVE_UIModernization:CreateMainFrame(parent)
