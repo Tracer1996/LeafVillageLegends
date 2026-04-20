@@ -141,20 +141,20 @@ function LeafVE_FrameSkins.ApplyTab(tab, isActive)
     end
   end
 
-  if not tab.__LeafVEUnderline then
+  if not tab._leafVEUnderline then
     local underline = tab:CreateTexture(nil, "ARTWORK")
     underline:SetTexture("Interface\\Buttons\\WHITE8X8")
     underline:SetPoint("BOTTOMLEFT", tab, "BOTTOMLEFT", 3, 3)
     underline:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", -3, 3)
     underline:SetHeight(2)
-    tab.__LeafVEUnderline = underline
+    tab._leafVEUnderline = underline
   end
 
   if isActive then
-    tab.__LeafVEUnderline:SetVertexColor(0.15, 0.65, 0.25, 1.0)
-    tab.__LeafVEUnderline:Show()
+    tab._leafVEUnderline:SetVertexColor(0.15, 0.65, 0.25, 1.0)
+    tab._leafVEUnderline:Show()
   else
-    tab.__LeafVEUnderline:Hide()
+    tab._leafVEUnderline:Hide()
   end
 end
 
@@ -178,14 +178,14 @@ function LeafVE_FrameSkins.ApplyDivider(frame)
   if not frame or type(frame.CreateTexture) ~= "function" then
     return
   end
-  if not frame.__LeafVEDivider then
+  if not frame._leafVEDivider then
     local line = frame:CreateTexture(nil, "ARTWORK")
     line:SetTexture("Interface\\Buttons\\WHITE8X8")
     line:SetPoint("LEFT", frame, "LEFT", 0, 0)
     line:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
     line:SetHeight(1)
-    frame.__LeafVEDivider = line
+    frame._leafVEDivider = line
   end
-  frame.__LeafVEDivider:SetVertexColor(0.18, 0.30, 0.20, 0.6)
-  frame.__LeafVEDivider:Show()
+  frame._leafVEDivider:SetVertexColor(0.18, 0.30, 0.20, 0.6)
+  frame._leafVEDivider:Show()
 end
