@@ -4418,7 +4418,8 @@ function LeafVE:InstallAllianceChatHandler()
 
   self.allianceChatHandlerInstalled = true
   self.originalAllianceMessageEventHandler = ChatFrame_MessageEventHandler
-  self.wrappedAllianceMessageEventHandler = function(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
+  self.wrappedAllianceMessageEventHandler = function(...)
+    local args = {n = select("#", ...), ...}
     local chatFrame
     local eventName
     local message
@@ -4433,34 +4434,34 @@ function LeafVE:InstallAllianceChatHandler()
     local unknown2
     local counter
 
-    if type(a1) == "table" and a1.AddMessage then
-      chatFrame = a1
-      eventName = a2
-      message = a3
-      author = a4
-      languageName = a5
-      channelString = a6
-      target = a7
-      flags = a8
-      unknown1 = a9
-      channelNumber = a10
-      channelName = a11
-      unknown2 = a12
-      counter = a13
+    if type(args[1]) == "table" and args[1].AddMessage then
+      chatFrame = args[1]
+      eventName = args[2]
+      message = args[3]
+      author = args[4]
+      languageName = args[5]
+      channelString = args[6]
+      target = args[7]
+      flags = args[8]
+      unknown1 = args[9]
+      channelNumber = args[10]
+      channelName = args[11]
+      unknown2 = args[12]
+      counter = args[13]
     else
       chatFrame = (type(this) == "table" and this.AddMessage and this) or DEFAULT_CHAT_FRAME
-      eventName = a1
-      message = a2
-      author = a3
-      languageName = a4
-      channelString = a5
-      target = a6
-      flags = a7
-      unknown1 = a8
-      channelNumber = a9
-      channelName = a10
-      unknown2 = a11
-      counter = a12
+      eventName = args[1]
+      message = args[2]
+      author = args[3]
+      languageName = args[4]
+      channelString = args[5]
+      target = args[6]
+      flags = args[7]
+      unknown1 = args[8]
+      channelNumber = args[9]
+      channelName = args[10]
+      unknown2 = args[11]
+      counter = args[12]
     end
 
     if LeafVE and LeafVE.HandleAllianceChatFrameMessage then
@@ -4489,7 +4490,7 @@ function LeafVE:InstallAllianceChatHandler()
       end
     end
 
-    return LeafVE.originalAllianceMessageEventHandler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
+    return LeafVE.originalAllianceMessageEventHandler(unpack(args, 1, args.n))
   end
 
   ChatFrame_MessageEventHandler = self.wrappedAllianceMessageEventHandler
