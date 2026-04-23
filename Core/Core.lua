@@ -2215,6 +2215,8 @@ function LeafVE:StoreShinobiDutyRepBonus(playerName, amount, updatedAt, suppress
   if LeafVE.UI and LeafVE.UI.frame and LeafVE.UI.frame.IsVisible and LeafVE.UI.frame:IsVisible() then
     if LeafVE.UI.activeTab == "workOrderRep" and LeafVE.UI.RefreshWorkOrderReputationPanel then
       LeafVE.UI:RefreshWorkOrderReputationPanel()
+    elseif LeafVE.UI.activeTab == "shinobiReputation" and LeafVE.UI.RefreshShinobiReputationLeaderboard then
+      LeafVE.UI:RefreshShinobiReputationLeaderboard()
     elseif LeafVE.UI.activeTab == "shinobiDuties" and LeafVE.UI.RefreshShinobiDutiesPanel then
       LeafVE.UI:RefreshShinobiDutiesPanel()
     end
@@ -14596,6 +14598,7 @@ function LeafVE.UI:LayoutLegacyMainTabs()
     {btn = self.tabLeaderWeek, width = 60},
     {btn = self.tabLeaderLife, width = 65},
     {btn = self.tabAchievements, width = 95},
+    {btn = self.tabShinobiReputation, width = 110},
     {btn = self.tabShoutouts, width = 80},
     {btn = self.tabGuildEvents, width = 88},
     {btn = self.tabHistory, width = 60},
@@ -14662,6 +14665,7 @@ local LEAFVE_GROUPED_NAV = {
       {tab = "leaderWeek", label = "Weekly", width = 62},
       {tab = "leaderLife", label = "Lifetime", width = 68},
       {tab = "achievements", label = "Achievements", width = 92},
+      {tab = "shinobiReputation", label = "Shinobi Reputation", width = 108},
       {tab = "badges", label = "Badges", width = 66},
       {tab = "titles", label = "Titles", width = 60},
       {tab = "roster", label = "Roster", width = 62},
@@ -14708,6 +14712,7 @@ local LEAFVE_GROUPED_TAB_TO_CATEGORY = {
   leaderWeek = "character",
   leaderLife = "character",
   achievements = "character",
+  shinobiReputation = "character",
   badges = "character",
   titles = "character",
   roster = "character",
@@ -14755,7 +14760,7 @@ end
 function LeafVE.UI:HideLegacyMainTabs()
   local legacyTabs = {
     self.tabWelcome, self.tabMe, self.tabRoster, self.tabLeaderWeek, self.tabLeaderLife,
-    self.tabAchievements, self.tabShoutouts, self.tabGuildEvents,
+    self.tabAchievements, self.tabShinobiReputation, self.tabShoutouts, self.tabGuildEvents,
     self.tabHistory, self.tabLiveHistory, self.tabBadges, self.tabOptions,
     self.tabAdmin, self.tabWorkOrderRep,
   }
@@ -14885,7 +14890,7 @@ function LeafVE.UI:BuildGroupedNavigation(parent)
     previousButton = btn
   end
 
-  for i = 1, 8 do
+  for i = 1, 10 do
     local btn = CreateWorkOrderModeButton(parent, "")
     btn:SetHeight(20)
     btn:SetWidth(80)
@@ -20623,6 +20628,11 @@ function LeafVE:SetWorkOrderReputationIdentityLink(playerName, identityName, sil
       and LeafVE.UI.RefreshWorkOrderReputationPanel then
       LeafVE.UI:RefreshWorkOrderReputationPanel()
     end
+    if LeafVE and LeafVE.UI and LeafVE.UI.panels and LeafVE.UI.panels.shinobiReputation
+      and LeafVE.UI.panels.shinobiReputation.IsVisible and LeafVE.UI.panels.shinobiReputation:IsVisible()
+      and LeafVE.UI.RefreshShinobiReputationLeaderboard then
+      LeafVE.UI:RefreshShinobiReputationLeaderboard()
+    end
     return true
   end
 
@@ -20635,6 +20645,11 @@ function LeafVE:SetWorkOrderReputationIdentityLink(playerName, identityName, sil
     and LeafVE.UI.panels.workOrderRep.IsVisible and LeafVE.UI.panels.workOrderRep:IsVisible()
     and LeafVE.UI.RefreshWorkOrderReputationPanel then
     LeafVE.UI:RefreshWorkOrderReputationPanel()
+  end
+  if LeafVE and LeafVE.UI and LeafVE.UI.panels and LeafVE.UI.panels.shinobiReputation
+    and LeafVE.UI.panels.shinobiReputation.IsVisible and LeafVE.UI.panels.shinobiReputation:IsVisible()
+    and LeafVE.UI.RefreshShinobiReputationLeaderboard then
+    LeafVE.UI:RefreshShinobiReputationLeaderboard()
   end
   return true
 end
@@ -21971,6 +21986,11 @@ function LeafVE:StoreWorkOrderRecord(order)
       and LeafVE.UI.RefreshWorkOrderReputationPanel then
       LeafVE.UI:RefreshWorkOrderReputationPanel()
     end
+    if LeafVE and LeafVE.UI and LeafVE.UI.panels and LeafVE.UI.panels.shinobiReputation
+      and LeafVE.UI.panels.shinobiReputation.IsVisible and LeafVE.UI.panels.shinobiReputation:IsVisible()
+      and LeafVE.UI.RefreshShinobiReputationLeaderboard then
+      LeafVE.UI:RefreshShinobiReputationLeaderboard()
+    end
     changed = true
   end
 
@@ -22004,6 +22024,11 @@ function LeafVE:StoreWorkOrderRecord(order)
       and LeafVE.UI.panels.workOrderRep.IsVisible and LeafVE.UI.panels.workOrderRep:IsVisible()
       and LeafVE.UI.RefreshWorkOrderReputationPanel then
       LeafVE.UI:RefreshWorkOrderReputationPanel()
+    end
+    if LeafVE and LeafVE.UI and LeafVE.UI.panels and LeafVE.UI.panels.shinobiReputation
+      and LeafVE.UI.panels.shinobiReputation.IsVisible and LeafVE.UI.panels.shinobiReputation:IsVisible()
+      and LeafVE.UI.RefreshShinobiReputationLeaderboard then
+      LeafVE.UI:RefreshShinobiReputationLeaderboard()
     end
   end
   local previousStatus = existing and self:GetEffectiveWorkOrderStatus(existing) or nil
@@ -31715,6 +31740,95 @@ function BuildAchievementsPanel(panel)
   panel.achEntries = {}
 end
 
+function BuildShinobiReputationPanel(panel)
+  local headerBG = panel:CreateTexture(nil, "BACKGROUND")
+  headerBG:SetPoint("TOP", panel, "TOP", -15, -10)
+  headerBG:SetWidth(420)
+  headerBG:SetHeight(50)
+  headerBG:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  headerBG:SetVertexColor(0.15, 0.15, 0.18, 0.9)
+
+  local accentTop = panel:CreateTexture(nil, "BORDER")
+  accentTop:SetPoint("TOPLEFT", headerBG, "TOPLEFT", 0, 0)
+  accentTop:SetPoint("TOPRIGHT", headerBG, "TOPRIGHT", 0, 0)
+  accentTop:SetHeight(3)
+  accentTop:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accentTop:SetVertexColor(THEME.gold[1], THEME.gold[2], THEME.gold[3], 1)
+
+  local h = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  h:SetPoint("TOP", headerBG, "TOP", 0, -10)
+  h:SetText("|cFFFFD700Shinobi Reputation|r")
+
+  local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  subtitle:SetPoint("TOP", h, "BOTTOM", 0, -3)
+  subtitle:SetText("|cFF888888Guild standings by verified work order reputation|r")
+
+  local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
+  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -45)
+  scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
+  scrollFrame:EnableMouse(true)
+  scrollFrame:EnableMouseWheel(true)
+
+  local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+  scrollChild:SetWidth(500)
+  scrollChild:SetHeight(1)
+  scrollFrame:SetScrollChild(scrollChild)
+
+  scrollFrame:SetScript("OnMouseWheel", function()
+    local current = scrollFrame:GetVerticalScroll()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    local newScroll = current - (arg1 * 40)
+    if newScroll < 0 then newScroll = 0 end
+    if newScroll > maxScroll then newScroll = maxScroll end
+    scrollFrame:SetVerticalScroll(newScroll)
+  end)
+
+  local scrollBar = CreateFrame("Slider", nil, panel)
+  scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -45)
+  scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 12)
+  scrollBar:SetWidth(16)
+  scrollBar:SetOrientation("VERTICAL")
+  scrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+  scrollBar:SetMinMaxValues(0, 100)
+  scrollBar:SetValue(0)
+
+  local thumb = scrollBar:GetThumbTexture()
+  thumb:SetWidth(16)
+  thumb:SetHeight(24)
+
+  scrollBar:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 8, edgeSize = 8,
+    insets = {left = 2, right = 2, top = 2, bottom = 2}
+  })
+  scrollBar:SetBackdropColor(0, 0, 0, 0.3)
+  scrollBar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+
+  scrollBar:SetScript("OnValueChanged", function()
+    local value = scrollBar:GetValue()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    if maxScroll > 0 then
+      scrollFrame:SetVerticalScroll((value / 100) * maxScroll)
+    end
+  end)
+
+  scrollFrame:SetScript("OnVerticalScroll", function()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    if maxScroll > 0 then
+      local current = scrollFrame:GetVerticalScroll()
+      scrollBar:SetValue((current / maxScroll) * 100)
+    else
+      scrollBar:SetValue(0)
+    end
+  end)
+
+  panel.scrollFrame = scrollFrame
+  panel.scrollChild = scrollChild
+  panel.scrollBar = scrollBar
+  panel.repEntries = {}
+end
+
 function BuildTitlesPanel(panel)
   local headerBG = panel:CreateTexture(nil, "BACKGROUND")
   headerBG:SetPoint("TOP", panel, "TOP", -15, -10)
@@ -35215,6 +35329,169 @@ function LeafVE.UI:RefreshAchievementsLeaderboard()
   panel.scrollBar:SetValue(0)
 end
 
+function LeafVE.UI:RefreshShinobiReputationLeaderboard()
+  if not self.panels or not self.panels.shinobiReputation then return end
+  local panel = self.panels.shinobiReputation
+
+  EnsureDB()
+  LeafVE:UpdateGuildRosterCache()
+
+  local snapshot = LeafVE:GetWorkOrderReputationSnapshot()
+  local leaders = {}
+  for i = 1, table.getn(snapshot.ranked or {}) do
+    local entry = snapshot.ranked[i]
+    if entry and (tonumber(entry.totalRep) or 0) > 0 then
+      table.insert(leaders, entry)
+    end
+  end
+
+  for i = 1, table.getn(panel.repEntries) do
+    panel.repEntries[i]:Hide()
+  end
+
+  local scrollChild = panel.scrollChild
+  local yOffset = -5
+  local entryHeight = 48
+  local maxShow = math.min(25, table.getn(leaders))
+
+  if table.getn(leaders) == 0 then
+    if not panel.noDataText then
+      local noDataText = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      noDataText:SetPoint("TOP", scrollChild, "TOP", 0, -20)
+      noDataText:SetText("|cFF888888No shinobi reputation data available yet|r")
+      panel.noDataText = noDataText
+    end
+    panel.noDataText:Show()
+  else
+    if panel.noDataText then
+      panel.noDataText:Hide()
+    end
+
+    for i = 1, maxShow do
+      local leader = leaders[i]
+      local frame = panel.repEntries[i]
+      if not frame then
+        frame = CreateFrame("Frame", nil, scrollChild)
+        frame:SetWidth(500)
+        frame:SetHeight(entryHeight)
+
+        local rankIcon = frame:CreateTexture(nil, "ARTWORK")
+        rankIcon:SetWidth(32)
+        rankIcon:SetHeight(32)
+        rankIcon:SetPoint("LEFT", frame, "LEFT", 5, 0)
+        frame.rankIcon = rankIcon
+
+        local rank = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        rank:SetPoint("LEFT", frame, "LEFT", 5, 0)
+        rank:SetWidth(30)
+        rank:SetJustifyH("RIGHT")
+        frame.rank = rank
+
+        local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        nameText:SetPoint("TOPLEFT", frame, "TOPLEFT", 75, -8)
+        nameText:SetWidth(230)
+        nameText:SetJustifyH("LEFT")
+        frame.nameText = nameText
+
+        local metaText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        metaText:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
+        metaText:SetWidth(260)
+        metaText:SetJustifyH("LEFT")
+        frame.metaText = metaText
+
+        local pointsText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        pointsText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -10)
+        pointsText:SetWidth(140)
+        pointsText:SetJustifyH("RIGHT")
+        frame.pointsText = pointsText
+
+        local detailText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        detailText:SetPoint("TOPRIGHT", pointsText, "BOTTOMRIGHT", 0, -2)
+        detailText:SetWidth(170)
+        detailText:SetJustifyH("RIGHT")
+        frame.detailText = detailText
+
+        local bg = frame:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(frame)
+        bg:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+        bg:SetVertexColor(0.1, 0.1, 0.1, 0.3)
+        frame.bg = bg
+
+        frame:EnableMouse(true)
+        frame:SetScript("OnEnter", function()
+          this.bg:SetVertexColor(0.14, 0.20, 0.12, 0.75)
+        end)
+        frame:SetScript("OnLeave", function()
+          this.bg:SetVertexColor(0.1, 0.1, 0.1, 0.3)
+        end)
+        frame:SetScript("OnMouseUp", function()
+          if this.playerName then
+            if LeafVE.UI.allBadgesFrame and LeafVE.UI.allBadgesFrame:IsVisible() then
+              LeafVE.UI.allBadgesFrame:Hide()
+            end
+            if LeafVE.UI.achPopup and LeafVE.UI.achPopup:IsVisible() then
+              LeafVE.UI.achPopup:Hide()
+            end
+            if LeafVE.UI.gearPopup and LeafVE.UI.gearPopup:IsVisible() then
+              LeafVE.UI.gearPopup:Hide()
+            end
+            if LeafVE.UI.workOrderPopup and LeafVE.UI.workOrderPopup:IsVisible() then
+              LeafVE.UI.workOrderPopup:Hide()
+            end
+            if LeafVE.UI.talentPopup and LeafVE.UI.talentPopup:IsVisible() then
+              LeafVE.UI.talentPopup:Hide()
+            end
+            LeafVE.UI:HideNativeTalentFrame()
+            LeafVE.UI.inspectedPlayer = this.playerName
+            LeafVE.UI:ShowPlayerCard(this.playerName)
+          end
+        end)
+
+        table.insert(panel.repEntries, frame)
+      end
+
+      frame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 5, yOffset)
+
+      if i <= 5 and PVP_RANK_ICONS[i] then
+        frame.rankIcon:SetTexture(PVP_RANK_ICONS[i])
+        frame.rankIcon:Show()
+        frame.rank:Hide()
+      else
+        frame.rankIcon:Hide()
+        frame.rank:Show()
+        frame.rank:SetText("#" .. i)
+        frame.rank:SetTextColor(1, 1, 1)
+      end
+
+      local classTag = LeafVE:GetClassTagForPlayer(leader.name) or "UNKNOWN"
+      local tierInfo = leader.tierInfo or LeafVE:GetWorkOrderReputationTierInfo(leader.totalRep or 0)
+      local tierName = tierInfo and tierInfo.current and tierInfo.current.name or "Leaf Apprentice"
+      local topProfessionText = leader.topProfession and tostring(leader.topProfession) or "No profession focus"
+
+      frame.nameText:SetText(LeafVE:BuildStyledPlayerName(leader.name, classTag))
+      frame.playerName = leader.name
+      frame.metaText:SetText("|cFF888888" .. tostring(tierName) .. "  |  " .. tostring(topProfessionText) .. "|r")
+      frame.pointsText:SetText("|cFFFFD700" .. LeafVE:FormatPointAmount(leader.totalRep or 0) .. " rep|r")
+      frame.detailText:SetText("|cFF88CC88C " .. LeafVE:FormatPointAmount(leader.crafterRep or 0) .. "|r  |  |cFF88CCFFR " .. LeafVE:FormatPointAmount(leader.requesterRep or 0) .. "|r")
+
+      frame:Show()
+      yOffset = yOffset - entryHeight - 8
+    end
+  end
+
+  scrollChild:SetHeight(math.max(1, math.abs(yOffset) + 50))
+
+  local scrollRange = panel.scrollFrame:GetVerticalScrollRange()
+  if scrollRange > 0 then
+    panel.scrollBar:Show()
+  else
+    panel.scrollBar:Hide()
+  end
+
+  panel.scrollFrame:SetVerticalScroll(0)
+  panel.scrollBar:SetValue(0)
+end
+
 function LeafVE.UI:Build()
   if self.frame then return end
   
@@ -35424,8 +35701,12 @@ function LeafVE.UI:Build()
   self.tabAchievements:SetPoint("LEFT", self.tabLeaderLife, "RIGHT", 4, 0)
   self.tabAchievements:SetWidth(95)
 
+  self.tabShinobiReputation = TabButton(f, "Shinobi Reputation", "LeafVE_TabShinobiReputation")
+  self.tabShinobiReputation:SetPoint("LEFT", self.tabAchievements, "RIGHT", 4, 0)
+  self.tabShinobiReputation:SetWidth(110)
+
   self.tabShoutouts = TabButton(f, "Shoutouts", "LeafVE_TabShoutouts")
-  self.tabShoutouts:SetPoint("LEFT", self.tabAchievements, "RIGHT", 4, 0)
+  self.tabShoutouts:SetPoint("LEFT", self.tabShinobiReputation, "RIGHT", 4, 0)
   self.tabShoutouts:SetWidth(80)
 
   self.tabGuildEvents = TabButton(f, "Guild Events", "LeafVE_TabGuildEvents")
@@ -35533,6 +35814,11 @@ function LeafVE.UI:Build()
   SkinPrimaryPanel(self.panels.achievements)
   BuildAchievementsPanel(self.panels.achievements)
 
+  self.panels.shinobiReputation = CreateFrame("Frame", nil, self.left)
+  self.panels.shinobiReputation:SetAllPoints(self.left)
+  SkinPrimaryPanel(self.panels.shinobiReputation)
+  BuildShinobiReputationPanel(self.panels.shinobiReputation)
+
   self.panels.options = CreateFrame("Frame", nil, self.left)
   self.panels.options:SetAllPoints(self.left)
   SkinPrimaryPanel(self.panels.options)
@@ -35628,6 +35914,11 @@ function LeafVE.UI:Build()
     self:Refresh()
   end)
 
+  self.tabShinobiReputation:SetScript("OnClick", function()
+    self.activeTab = "shinobiReputation"
+    self:Refresh()
+  end)
+
   self.tabOptions:SetScript("OnClick", function()
     self.activeTab = "options"
     self:Refresh()
@@ -35674,6 +35965,7 @@ function LeafVE.UI:Build()
   self.panels.badges:Hide()
   self.panels.titles:Hide()
   self.panels.achievements:Hide()
+  self.panels.shinobiReputation:Hide()
   self.panels.options:Hide()
   self.panels.admin:Hide()
   self.panels.liveHistory:Hide()
@@ -35733,7 +36025,7 @@ function LeafVE.UI:Refresh()
     self.activeTab = "workOrderRep"
   end
 
-  local accessTabs = {self.tabWelcome, self.tabMe, self.tabRoster, self.tabLeaderWeek, self.tabLeaderLife, self.tabAchievements, self.tabBadges, self.tabShoutouts, self.tabHistory, self.tabLiveHistory, self.tabGuildEvents, self.tabWorkOrderRep, self.tabOptions}
+  local accessTabs = {self.tabWelcome, self.tabMe, self.tabRoster, self.tabLeaderWeek, self.tabLeaderLife, self.tabAchievements, self.tabShinobiReputation, self.tabBadges, self.tabShoutouts, self.tabHistory, self.tabLiveHistory, self.tabGuildEvents, self.tabWorkOrderRep, self.tabOptions}
   if hasAccess then
     for _, tab in ipairs(accessTabs) do
       if tab then tab:Show() end
@@ -35772,8 +36064,9 @@ function LeafVE.UI:Refresh()
       elseif tab == self.tabRoster then isActive = (self.activeTab == "roster")
       elseif tab == self.tabLeaderWeek then isActive = (self.activeTab == "leaderWeek")
       elseif tab == self.tabLeaderLife then isActive = (self.activeTab == "leaderLife")
-      elseif tab == self.tabAchievements then isActive = (self.activeTab == "achievements")
-      elseif tab == self.tabBadges then isActive = (self.activeTab == "badges")
+    elseif tab == self.tabAchievements then isActive = (self.activeTab == "achievements")
+    elseif tab == self.tabShinobiReputation then isActive = (self.activeTab == "shinobiReputation")
+    elseif tab == self.tabBadges then isActive = (self.activeTab == "badges")
       elseif tab == self.tabShoutouts then isActive = (self.activeTab == "shoutouts")
       elseif tab == self.tabHistory then isActive = (self.activeTab == "history")
       elseif tab == self.tabLiveHistory then isActive = (self.activeTab == "liveHistory")
@@ -35796,7 +36089,7 @@ function LeafVE.UI:Refresh()
   end
   
   -- Hide all panels safely
-  local panelNames = {"me", "shoutouts", "leaderWeek", "leaderLife", "roster", "history", "badges", "titles", "achievements", "options", "admin", "liveHistory", "guildEvents", "workOrders", "shinobiDuties", "workOrderRep", "welcome", "join"}
+  local panelNames = {"me", "shoutouts", "leaderWeek", "leaderLife", "roster", "history", "badges", "titles", "achievements", "shinobiReputation", "options", "admin", "liveHistory", "guildEvents", "workOrders", "shinobiDuties", "workOrderRep", "welcome", "join"}
   for _, name in ipairs(panelNames) do
     if self.panels[name] and self.panels[name].Hide then
       self.panels[name]:Hide()
@@ -36086,6 +36379,10 @@ function LeafVE.UI:Refresh()
   elseif self.activeTab == "achievements" and self.panels.achievements then
     ShowPanelWithTransition(self.panels.achievements)
     self:RefreshAchievementsLeaderboard()
+
+  elseif self.activeTab == "shinobiReputation" and self.panels.shinobiReputation then
+    ShowPanelWithTransition(self.panels.shinobiReputation)
+    self:RefreshShinobiReputationLeaderboard()
 
   elseif self.activeTab == "options" and self.panels.options then
     ShowPanelWithTransition(self.panels.options)
