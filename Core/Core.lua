@@ -5,7 +5,8 @@ AtlasLoot_Data = AtlasLoot_Data or {}
 LeafVE = LeafVE or {}
 LeafVE.name = "LeafVillageLegends"
 LeafVE.prefix = "LeafVE"
-LeafVE.version = "15.0"
+LeafVE.version = "16.0"
+LeafVE.isAllianceStandalone = false
 LeafVE.guildBankOwner = "Methllyy"
 LeafVE.guildBankEnabled = false
 LeafVE.raidSignupsEnabled = false
@@ -43,7 +44,22 @@ LeafVE.allianceChat = {
   prefixColor = "|cFF73C8FF",
   messageColor = "|cFFFFD10D",
   hiddenPrefix = "~LVA1~",
+  controlPrefix = "LVACTL:",
+  fieldSep = "<~>",
+  rosterMemberSep = "<#>",
 }
+
+_G.LeafAllianceCommAPI = _G.LeafAllianceCommAPI or {}
+_G.LeafAllianceCommAPI.version = 1
+_G.LeafAllianceCommAPI.tags = _G.LeafAllianceCommAPI.tags or {
+  accessRequest = "ACCESSREQ:",
+  accessResponse = "ACCESSRESP:",
+  rosterRequest = "ROSTERREQ:",
+  rosterData = "ROSTERDATA:",
+  accessSnapshot = "CFGSYNC:",
+}
+_G.LeafAllianceCommAPI.transport = "PARTY_ADDON"
+LeafVE.API = _G.LeafAllianceCommAPI
 
 local function PurgeDisabledFeatureData()
   if not LeafVE_DB then LeafVE_DB = {} end
@@ -110,7 +126,7 @@ local BOSS_GUILDIE_BONUS_POINTS = 5   -- extra LP per guildie on boss kills
 local BOSS_KILL_DEDUP_WINDOW = 10     -- seconds to suppress duplicate boss-kill awards
 local INSTANCE_COMPLETION_POINTS = 10 -- dungeon completion (flat)
 local RAID_COMPLETION_POINTS = 25     -- raid completion (flat)
-local INSTANCE_MIN_PRESENCE_PCT = 0.5  -- must be present for ≥50% of run time
+local INSTANCE_MIN_PRESENCE_PCT = 0.5  -- must be present for Ã¢â€°Â¥50% of run time
 local INSTANCE_MAX_DAILY = 20
 local QUEST_POINTS = 10
 local QUEST_MAX_DAILY = 0
@@ -125,15 +141,97 @@ WORK_ORDER_REPUTATION_CRAFTER_MATS_BONUS = 3
 WORK_ORDER_REPUTATION_FAST_COMPLETE_12H_BONUS = 5
 WORK_ORDER_REPUTATION_FAST_COMPLETE_24H_BONUS = 3
 WORK_ORDER_REPUTATION_PROMPT_VERIFY_24H_BONUS = 1
+WORK_ORDER_REPUTATION_BADGE_THRESHOLDS = {
+  firstContract = 200,
+  trustedHand = 600,
+  villageArtisan = 1500,
+  masterSupplier = 3000,
+  leafLegend = 6000,
+}
 WORK_ORDER_REPUTATION_TIERS = {
   { name = "Leaf Apprentice", min = 0 },
-  { name = "Trusted Hand", min = 150 },
-  { name = "Village Artisan", min = 400 },
-  { name = "Master Supplier", min = 800 },
-  { name = "Leaf Legend", min = 1500 },
+  { name = "Trusted Hand", min = WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.trustedHand },
+  { name = "Village Artisan", min = WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.villageArtisan },
+  { name = "Master Supplier", min = WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.masterSupplier },
+  { name = "Leaf Legend", min = WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.leafLegend },
+}
+LeafVE.shinobiDutyTierOrder = {"S", "A", "B", "C", "D"}
+LeafVE.shinobiDutyTemplateVersion = 3
+LeafVE.shinobiDutyTierInfo = {
+  S = { label = "S Tier", lpReward = 40, repReward = 100, color = {0.92, 0.30, 0.30} },
+  A = { label = "A Tier", lpReward = 30, repReward = 74, color = {0.96, 0.56, 0.20} },
+  B = { label = "B Tier", lpReward = 22, repReward = 52, color = {0.29, 0.82, 0.49} },
+  C = { label = "C Tier", lpReward = 15, repReward = 34, color = {0.28, 0.64, 0.92} },
+  D = { label = "D Tier", lpReward = 10, repReward = 22, color = {0.72, 0.72, 0.78} },
+}
+LeafVE.shinobiDutyMetricCatalog = {
+  {
+    key = "guildie_hks",
+    title = "Crimson Patrol",
+    icon = "Interface\\Icons\\INV_BannerPVP_01",
+    progressLabel = "HKs with guildies",
+    sourceHint = "Honorable kills earned while grouped with guildies.",
+    description = "Earn %d honorable kills alongside guildies this week.",
+    targets = { S = 500, A = 300, B = 180, C = 90, D = 40 },
+  },
+  {
+    key = "group_hours",
+    title = "Squad Rotation",
+    icon = "Interface\\Icons\\INV_Misc_GroupLooking",
+    progressLabel = "Guildie group hours",
+    sourceHint = "Tracked from the hourly group-point tick while grouped with guildies.",
+    description = "Spend %d tracked hour(s) grouped with guildies this week.",
+    targets = { S = 18, A = 12, B = 8, C = 5, D = 3 },
+  },
+  {
+    key = "guildie_quests",
+    title = "Field Assignments",
+    icon = "Interface\\Icons\\INV_Scroll_03",
+    progressLabel = "Guild-group quests",
+    sourceHint = "Quest turn-ins that awarded guild-group Leaf Points this week.",
+    description = "Complete %d guild-group quest(s) this week.",
+    targets = { S = 50, A = 32, B = 22, C = 14, D = 8 },
+  },
+  {
+    key = "shoutouts_given",
+    title = "Village Recognition",
+    icon = "Interface\\Icons\\Spell_Holy_GreaterBlessingofKings",
+    progressLabel = "Shoutouts given",
+    sourceHint = "Counts shoutouts you send this week.",
+    description = "Send %d shoutout(s) to fellow Shinobis this week.",
+    targets = { S = 10, A = 8, B = 6, C = 4, D = 2 },
+  },
+  {
+    key = "work_orders_created",
+    title = "Supply Requests",
+    icon = "Interface\\Icons\\INV_Scroll_05",
+    progressLabel = "Work orders posted",
+    sourceHint = "Counts live work orders you post this week.",
+    description = "Post %d work order(s) this week.",
+    targets = { S = 8, A = 6, B = 4, C = 3, D = 2 },
+  },
+  {
+    key = "work_orders_completed",
+    title = "Master's Hand",
+    icon = "Interface\\Icons\\INV_Hammer_09",
+    progressLabel = "Orders completed",
+    sourceHint = "Counts work orders you complete as the fulfiller this week.",
+    description = "Complete %d work order(s) for guildmates this week.",
+    targets = { S = 8, A = 6, B = 4, C = 3, D = 2 },
+  },
+  {
+    key = "work_orders_verified",
+    title = "Quartermaster Sign-Off",
+    icon = "Interface\\Icons\\INV_Misc_Note_01",
+    progressLabel = "Orders verified",
+    sourceHint = "Counts work orders you verify as the requester this week.",
+    description = "Verify %d completed work order(s) this week.",
+    targets = { S = 8, A = 6, B = 4, C = 3, D = 2 },
+  },
 }
 local GRPAWARD_GRACE_PERIOD = 60      -- seconds non-broadcasters wait for the guildie broadcaster before self-awarding
 local WEEKEND_POINT_MULTIPLIER = 2    -- LP multiplier applied on Saturday/Sunday
+LeafVE.allianceRosterBroadcasterTTL = 90
 
 local SEASON_REWARD_1 = 10
 local SEASON_REWARD_2 = 5
@@ -170,8 +268,29 @@ LeafVE.weeklyRecapRankMessageTemplates = {
   },
 }
 
-local ADMIN_RANKS = {}
-local ACCESS_RANKS = {}
+local ADMIN_RANKS = {
+  ["kage"] = true,
+  ["hokage"] = true,
+}
+local ACCESS_RANKS = {
+  ["academy student"] = true,
+  ["genin"] = true,
+  ["chonun"] = true,
+  ["chunin"] = true,
+  ["chuunin"] = true,
+  ["jounin"] = true,
+  ["jonin"] = true,
+  ["anbu"] = true,
+  ["akatsuki"] = true,
+  ["kage"] = true,
+  ["hokage"] = true,
+  ["sannin"] = true,
+}
+local RANK_NAME_ALIASES = {
+  ["chunin"] = "chonun",
+  ["chuunin"] = "chonun",
+  ["jonin"] = "jounin",
+}
 
 local LEAF_EMBLEM = "Interface\\Icons\\Spell_Nature_ResistNature"
 local LEAF_FALLBACK = "Interface\\Icons\\Spell_Nature_ResistNature"
@@ -394,7 +513,6 @@ WORK_ORDER_PROFESSION_ORDER = {
   "Enchanting",
   "Engineering",
   "First Aid",
-  "Jewelcrafting",
   "Leatherworking",
   "Tailoring",
 }
@@ -406,7 +524,6 @@ WORK_ORDER_REQUEST_CATEGORY_ORDER = {
   "Enchanting",
   "Engineering",
   "First Aid",
-  "Jewelcrafting",
   "Leatherworking",
   "Tailoring",
   "Gathering",
@@ -418,7 +535,6 @@ WORK_ORDER_MAIN_PROFESSION_ORDER = {
   "Enchanting",
   "Engineering",
   "Herbalism",
-  "Jewelcrafting",
   "Leatherworking",
   "Mining",
   "Skinning",
@@ -468,6 +584,7 @@ WORK_ORDER_TABLE_PREFIX_MAP = {
   Alchemy = "Alchemy",
   Armorsmith = "Blacksmithing",
   Axesmith = "Blacksmithing",
+  Blacksmithing = "Blacksmithing",
   Cooking = "Cooking",
   Enchanting = "Enchanting",
   Engineering = "Engineering",
@@ -509,8 +626,15 @@ WORK_ORDER_TABLE_OVERRIDES = {
   SmithingBuckles1 = "Blacksmithing",
   SteelPlate = "Blacksmithing",
   StormshroudArmor = "Leatherworking",
+  Tailchanting1 = "Tailoring",
   TheDarksoul = "Blacksmithing",
   VolcanicArmor = "Leatherworking",
+  Darkironplate = "Blacksmithing",
+  Warbearwear = "Leatherworking",
+  Lavaleather = "Leatherworking",
+  Bigvoodoo = "Leatherworking",
+  Basiliskscalearmor = "Leatherworking",
+  Turtlescalearmor = "Leatherworking",
 }
 
 WORK_ORDER_ALWAYS_TRADEABLE_ITEM_IDS = {
@@ -680,6 +804,17 @@ BADGES = {
   {id = "guildie_hours_500",   name = "Guildie Group Hours VII", desc = "Obtain 500 guildie group hours",    icon = "Interface\\Icons\\INV_Crown_01",    category = "Social", quality = BADGE_QUALITY.EPIC},
   {id = "guildie_hours_1000",  name = "Guildie Group Hours VIII",  desc = "Obtain 1000 guildie group hours",   icon = "Interface\\Icons\\INV_Crown_01",    category = "Social", quality = BADGE_QUALITY.EPIC},
   {id = "guildie_hours_10000", name = "Guildie Group Hours IX", desc = "Obtain 10000 guildie group hours",  icon = "Interface\\Icons\\INV_Crown_02",    category = "Social", quality = BADGE_QUALITY.LEGENDARY},
+
+  -- PvP with Guildies (AUTO-TRACKED)
+  {id = "shinobi_combatant_100",    name = "Shinobi Combatant I",    desc = "Gain 100 honorable kills fighting alongside another Shinobi",    icon = "Interface\\Icons\\Ability_Warrior_Challange", category = "Shinobi Combatant", quality = BADGE_QUALITY.COMMON},
+  {id = "shinobi_combatant_500",    name = "Shinobi Combatant II",   desc = "Gain 500 honorable kills fighting alongside another Shinobi",    icon = "Interface\\Icons\\Ability_DualWield",         category = "Shinobi Combatant", quality = BADGE_QUALITY.UNCOMMON},
+  {id = "shinobi_combatant_1000",   name = "Shinobi Combatant III",  desc = "Gain 1000 honorable kills fighting alongside another Shinobi",   icon = "Interface\\Icons\\Ability_Rogue_Ambush",      category = "Shinobi Combatant", quality = BADGE_QUALITY.UNCOMMON},
+  {id = "shinobi_combatant_2500",   name = "Shinobi Combatant IV",   desc = "Gain 2500 honorable kills fighting alongside another Shinobi",   icon = "Interface\\Icons\\INV_Sword_27",              category = "Shinobi Combatant", quality = BADGE_QUALITY.RARE},
+  {id = "shinobi_combatant_5000",   name = "Shinobi Combatant V",    desc = "Gain 5000 honorable kills fighting alongside another Shinobi",   icon = "Interface\\Icons\\INV_Banner_01",             category = "Shinobi Combatant", quality = BADGE_QUALITY.RARE},
+  {id = "shinobi_combatant_7500",   name = "Shinobi Combatant VI",   desc = "Gain 7500 honorable kills fighting alongside another Shinobi",   icon = "Interface\\Icons\\INV_Banner_03",             category = "Shinobi Combatant", quality = BADGE_QUALITY.EPIC},
+  {id = "shinobi_combatant_10000",  name = "Shinobi Combatant VII",  desc = "Gain 10000 honorable kills fighting alongside another Shinobi",  icon = "Interface\\Icons\\INV_Misc_Head_Dragon_Red",  category = "Shinobi Combatant", quality = BADGE_QUALITY.EPIC},
+  {id = "shinobi_combatant_25000",  name = "Shinobi Combatant VIII", desc = "Gain 25000 honorable kills fighting alongside another Shinobi",  icon = "Interface\\Icons\\INV_Crown_01",              category = "Shinobi Combatant", quality = BADGE_QUALITY.EPIC},
+  {id = "shinobi_combatant_50000",  name = "Shinobi Combatant IX",   desc = "Gain 50000 honorable kills fighting alongside another Shinobi",  icon = "Interface\\Icons\\INV_Crown_02",              category = "Shinobi Combatant", quality = BADGE_QUALITY.LEGENDARY},
   
   -- Shoutouts (AUTO-TRACKED)
   {id = "first_shoutout_given",    name = "Generous Soul",   desc = "Give your first shoutout",    icon = "Interface\\Icons\\INV_Letter_15",                    category = "Recognition", quality = BADGE_QUALITY.COMMON},
@@ -708,11 +843,56 @@ BADGES = {
   {id = "guild_age_365", name = "One Year Legend",     desc = "Be in guild for 1 year",   icon = "Interface\\Icons\\Ability_Creature_Cursed_02",   category = "Loyalty", quality = BADGE_QUALITY.LEGENDARY},
 
   -- Work Orders (AUTO-TRACKED)
-  {id = "work_order_rep_50",   name = "First Contract",   desc = "Reach 50 Work Order Reputation",   icon = "Interface\\Icons\\INV_Letter_15",       category = "Work Orders", quality = BADGE_QUALITY.COMMON},
-  {id = "work_order_rep_150",  name = "Trusted Hand",     desc = "Reach 150 Work Order Reputation",  icon = "Interface\\Icons\\Trade_Alchemy",       category = "Work Orders", quality = BADGE_QUALITY.UNCOMMON},
-  {id = "work_order_rep_400",  name = "Village Artisan",  desc = "Reach 400 Work Order Reputation",  icon = "Interface\\Icons\\Trade_BlackSmithing", category = "Work Orders", quality = BADGE_QUALITY.RARE},
-  {id = "work_order_rep_800",  name = "Master Supplier",  desc = "Reach 800 Work Order Reputation",  icon = "Interface\\Icons\\INV_Crate_01",        category = "Work Orders", quality = BADGE_QUALITY.EPIC},
-  {id = "work_order_rep_1500", name = "Leaf Legend",      desc = "Reach 1500 Work Order Reputation", icon = "Interface\\Icons\\INV_Crown_02",        category = "Work Orders", quality = BADGE_QUALITY.LEGENDARY},
+  {id = "work_order_rep_50",   name = "First Contract",   desc = "Reach " .. tostring(WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.firstContract) .. " Work Order Reputation",   icon = "Interface\\Icons\\INV_Letter_15",       category = "Work Orders", quality = BADGE_QUALITY.COMMON},
+  {id = "work_order_rep_150",  name = "Trusted Hand",     desc = "Reach " .. tostring(WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.trustedHand) .. " Work Order Reputation",    icon = "Interface\\Icons\\Trade_Alchemy",       category = "Work Orders", quality = BADGE_QUALITY.UNCOMMON},
+  {id = "work_order_rep_400",  name = "Village Artisan",  desc = "Reach " .. tostring(WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.villageArtisan) .. " Work Order Reputation",  icon = "Interface\\Icons\\Trade_BlackSmithing", category = "Work Orders", quality = BADGE_QUALITY.RARE},
+  {id = "work_order_rep_800",  name = "Master Supplier",  desc = "Reach " .. tostring(WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.masterSupplier) .. " Work Order Reputation",  icon = "Interface\\Icons\\INV_Crate_01",        category = "Work Orders", quality = BADGE_QUALITY.EPIC},
+  {id = "work_order_rep_1500", name = "Leaf Legend",      desc = "Reach " .. tostring(WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.leafLegend) .. " Work Order Reputation",      icon = "Interface\\Icons\\INV_Crown_02",        category = "Work Orders", quality = BADGE_QUALITY.LEGENDARY},
+}
+
+LeafVE.titleDefinitions = {
+  {id = "total_500", title = "Operative", badgeId = "total_500"},
+  {id = "total_1000", title = "Adept", badgeId = "total_1000"},
+  {id = "total_2000", title = "Champion", badgeId = "total_2000"},
+  {id = "total_5000", title = "Kagehand", badgeId = "total_5000"},
+  {id = "total_10000", title = "Paragon", badgeId = "total_10000"},
+  {id = "total_20000", title = "Immortal", badgeId = "total_20000"},
+  {id = "shoutout_received_50", title = "Icon", badgeId = "shoutout_received_50"},
+  {id = "guildie_hours_50", title = "Squadmate", badgeId = "guildie_hours_50"},
+  {id = "guildie_hours_100", title = "Bondmate", badgeId = "guildie_hours_100"},
+  {id = "guildie_hours_250", title = "Captain", badgeId = "guildie_hours_250"},
+  {id = "guildie_hours_500", title = "Vanguard", badgeId = "guildie_hours_500"},
+  {id = "guildie_hours_1000", title = "Battalion", badgeId = "guildie_hours_1000"},
+  {id = "guildie_hours_10000", title = "Legendmate", badgeId = "guildie_hours_10000"},
+  {id = "shinobi_combatant_2500", title = "Frontliner", badgeId = "shinobi_combatant_2500"},
+  {id = "shinobi_combatant_5000", title = "Sentinel", badgeId = "shinobi_combatant_5000"},
+  {id = "shinobi_combatant_7500", title = "Commander", badgeId = "shinobi_combatant_7500"},
+  {id = "shinobi_combatant_10000", title = "Crimson", badgeId = "shinobi_combatant_10000"},
+  {id = "shinobi_combatant_25000", title = "War Hero", badgeId = "shinobi_combatant_25000"},
+  {id = "shinobi_combatant_50000", title = "Hokage Blade", badgeId = "shinobi_combatant_50000"},
+  {id = "work_order_rep_800", title = "Quartermaster", badgeId = "work_order_rep_800"},
+  {id = "work_order_rep_1500", title = "Supply Legend", badgeId = "work_order_rep_1500"},
+}
+
+BADGE_COLLECTION_CATEGORY_ORDER = {
+  "Milestones",
+  "Recognition",
+  "Grouping",
+  "Work Orders",
+  "PvP",
+  "Raids",
+  "Loyalty",
+}
+
+BADGE_COLLECTION_CATEGORY_META = {
+  ["Milestones"] = { title = "Milestones", subtitle = "Major Leaf Point totals and long-form guild progression." },
+  ["Recognition"] = { title = "Recognition", subtitle = "Shoutouts, esteem, and honors earned from the village." },
+  ["Grouping"] = { title = "Grouping", subtitle = "Time spent questing, fighting, and traveling with fellow shinobi." },
+  ["Work Orders"] = { title = "Work Orders", subtitle = "Supply lines, rep tiers, and service to the village economy." },
+  ["PvP"] = { title = "Shinobi Combat", subtitle = "Battle honors earned while fighting alongside guildmates." },
+  ["Raids"] = { title = "Raids", subtitle = "Attendance and consistency during organized battlefield runs." },
+  ["Loyalty"] = { title = "Loyalty", subtitle = "Time served beneath the banner of Leaf Village." },
+  ["Other"] = { title = "Other Honors", subtitle = "Special badges that do not fit a single discipline." },
 }
 
 local REMOVED_BADGE_IDS = {
@@ -1108,20 +1288,33 @@ local function Round2(num)
   return math.floor((num * 100) + 0.5) / 100
 end
 
+function LeafVE:FormatPointAmount(amount)
+  local num = Round2(tonumber(amount) or 0)
+  local roundedInt = math.floor(num + 0.5)
+  if math.abs(num - roundedInt) < 0.001 then
+    return tostring(roundedInt)
+  end
+
+  local text = string.format("%.2f", num)
+  text = string.gsub(text, "%.00$", "")
+  text = string.gsub(text, "(%.%d)0$", "%1")
+  return text
+end
+
 local function EncodeTalentField(text)
   text = tostring(text or "")
-  return string.gsub(text, "([^%w _%.%-])", function(ch)
+  return (string.gsub(text, "([^%w _%.%-])", function(ch)
     return string.format("%%%02X", string.byte(ch))
-  end)
+  end))
 end
 
 local function DecodeTalentField(text)
   text = tostring(text or "")
-  return string.gsub(text, "%%(%x%x)", function(hex)
+  return (string.gsub(text, "%%(%x%x)", function(hex)
     local num = tonumber(hex, 16)
     if not num then return " " end
     return string.char(num)
-  end)
+  end))
 end
 
 local function SplitByLiteralSep(text, sep)
@@ -1163,6 +1356,369 @@ local function FormatAchievementName(achID)
   return formatted
 end
 
+local function AchievementKey(achId)
+  if achId == nil then return nil end
+  return tostring(achId)
+end
+
+local function BuildAchievementTimestamp(month, day, year)
+  month = tonumber(month)
+  day = tonumber(day)
+  year = tonumber(year)
+  if not month or not day or not year or year <= 0 then
+    return 0
+  end
+
+  local ok, stamp = pcall(time, {
+    year = year,
+    month = month,
+    day = day,
+    hour = 12,
+    min = 0,
+    sec = 0,
+  })
+
+  if ok and type(stamp) == "number" then
+    return stamp
+  end
+
+  return 0
+end
+
+local function CopyAchievementEntry(meta, timestampOverride, pointsOverride)
+  if not meta then return nil end
+
+  local fallbackName = FormatAchievementName(AchievementKey(meta.id) or meta.key or "")
+  return {
+    id = meta.id,
+    key = meta.key or AchievementKey(meta.id),
+    name = meta.name or fallbackName,
+    desc = meta.desc or "",
+    icon = meta.icon or LEAF_FALLBACK,
+    points = tonumber(pointsOverride or meta.points) or DEFAULT_ACHIEVEMENT_POINTS,
+    completed = meta.completed and true or false,
+    timestamp = tonumber(timestampOverride or meta.timestamp) or 0,
+    category = meta.category,
+  }
+end
+
+local function NormalizeDirectAchievementInfo(achId)
+  if type(GetAchievementInfo) ~= "function" then return nil end
+
+  local numericId = tonumber(achId)
+  local ok, id, name, points, completed, month, day, year, description, flags, icon =
+    pcall(GetAchievementInfo, numericId or achId)
+  if not ok or not id then return nil end
+
+  return {
+    id = id,
+    key = AchievementKey(id),
+    name = name,
+    points = tonumber(points) or DEFAULT_ACHIEVEMENT_POINTS,
+    completed = completed and true or false,
+    month = month,
+    day = day,
+    year = year,
+    desc = description or "",
+    flags = flags,
+    icon = icon or LEAF_FALLBACK,
+    timestamp = BuildAchievementTimestamp(month, day, year),
+  }
+end
+
+function LeafVE:InvalidateClientAchievementCatalog()
+  self._clientAchievementCatalog = nil
+end
+
+function LeafVE:GetClientAchievementCatalog(forceRefresh)
+  if not forceRefresh and self._clientAchievementCatalog then
+    return self._clientAchievementCatalog
+  end
+
+  local catalog = {
+    available = false,
+    byId = {},
+    completed = {},
+    totalPoints = 0,
+  }
+
+  if type(GetCategoryList) ~= "function" or type(GetCategoryNumAchievements) ~= "function" or type(GetAchievementInfo) ~= "function" then
+    self._clientAchievementCatalog = catalog
+    return catalog
+  end
+
+  local categories = {}
+  local okPopulate = pcall(GetCategoryList, categories)
+  if not okPopulate or table.getn(categories) == 0 then
+    categories = { GetCategoryList() }
+  end
+
+  local seen = {}
+
+  for _, categoryId in ipairs(categories) do
+    if type(categoryId) == "number" then
+      local okCount, numAchievements = pcall(GetCategoryNumAchievements, categoryId)
+      if okCount and type(numAchievements) == "number" and numAchievements > 0 then
+        local categoryName = nil
+        if type(GetCategoryInfo) == "function" then
+          local okCategory, resolvedCategory = pcall(GetCategoryInfo, categoryId)
+          if okCategory and type(resolvedCategory) == "string" then
+            categoryName = resolvedCategory
+          end
+        end
+
+        for index = 1, numAchievements do
+          local okInfo, id, name, points, completed, month, day, year, description, flags, icon =
+            pcall(GetAchievementInfo, categoryId, index)
+
+          if okInfo and id then
+            local key = AchievementKey(id)
+            if key and not seen[key] then
+              seen[key] = true
+
+              local entry = {
+                id = id,
+                key = key,
+                name = name,
+                points = tonumber(points) or DEFAULT_ACHIEVEMENT_POINTS,
+                completed = completed and true or false,
+                month = month,
+                day = day,
+                year = year,
+                desc = description or "",
+                flags = flags,
+                icon = icon or LEAF_FALLBACK,
+                category = categoryName,
+                timestamp = BuildAchievementTimestamp(month, day, year),
+              }
+
+              catalog.byId[key] = entry
+              catalog.available = true
+
+              if entry.completed then
+                table.insert(catalog.completed, CopyAchievementEntry(entry))
+                catalog.totalPoints = catalog.totalPoints + entry.points
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  table.sort(catalog.completed, function(a, b)
+    local aStamp = tonumber(a.timestamp) or 0
+    local bStamp = tonumber(b.timestamp) or 0
+    if aStamp == bStamp then
+      return Lower(tostring(a.name or a.id or "")) < Lower(tostring(b.name or b.id or ""))
+    end
+    return aStamp > bStamp
+  end)
+
+  self._clientAchievementCatalog = catalog
+  return catalog
+end
+
+function LeafVE:GetAchievementMeta(achId)
+  local key = AchievementKey(achId)
+  if not key then return nil end
+
+  local catalog = self:GetClientAchievementCatalog(false)
+  if catalog and catalog.byId and catalog.byId[key] then
+    return catalog.byId[key]
+  end
+
+  local directMeta = NormalizeDirectAchievementInfo(achId)
+  if directMeta then
+    return directMeta
+  end
+
+  if LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta then
+    local legacyMeta = LeafVE_AchTest.GetAchievementMeta(achId)
+    if legacyMeta then
+      return {
+        id = achId,
+        key = key,
+        name = legacyMeta.name,
+        desc = legacyMeta.desc,
+        icon = legacyMeta.icon,
+        points = legacyMeta.points,
+        category = legacyMeta.category,
+        criteria_key = legacyMeta.criteria_key,
+        criteria_type = legacyMeta.criteria_type,
+      }
+    end
+  end
+
+  return {
+    id = tonumber(achId) or achId,
+    key = key,
+    name = FormatAchievementName(key),
+    desc = "",
+    icon = nil,
+    points = DEFAULT_ACHIEVEMENT_POINTS,
+    category = "Achievement",
+  }
+end
+
+function LeafVE:GetAchievementCacheForPlayer(playerName)
+  if not playerName or not LeafVE_GlobalDB or not LeafVE_GlobalDB.achievementCache then
+    return nil
+  end
+
+  if LeafVE_GlobalDB.achievementCache[playerName] then
+    return LeafVE_GlobalDB.achievementCache[playerName]
+  end
+
+  local lookup = Lower(playerName)
+  for cachedName, cachedAchievements in pairs(LeafVE_GlobalDB.achievementCache) do
+    if Lower(cachedName) == lookup then
+      return cachedAchievements
+    end
+  end
+
+  return nil
+end
+
+function LeafVE:GetLocalCompletedAchievementEntries(forceRefresh)
+  local achievements = {}
+  local catalog = self:GetClientAchievementCatalog(forceRefresh)
+
+  if catalog and catalog.available then
+    for _, entry in ipairs(catalog.completed) do
+      table.insert(achievements, CopyAchievementEntry(entry))
+    end
+    return achievements
+  end
+
+  if LeafVE_AchTest_DB and LeafVE_AchTest_DB.achievements then
+    for achId, timestamp in pairs(LeafVE_AchTest_DB.achievements) do
+      if type(timestamp) == "number" and timestamp > 0 then
+        local meta = self:GetAchievementMeta(achId)
+        table.insert(achievements, CopyAchievementEntry(meta, timestamp))
+      end
+    end
+
+    table.sort(achievements, function(a, b)
+      local aStamp = tonumber(a.timestamp) or 0
+      local bStamp = tonumber(b.timestamp) or 0
+      if aStamp == bStamp then
+        return Lower(tostring(a.name or a.id or "")) < Lower(tostring(b.name or b.id or ""))
+      end
+      return aStamp > bStamp
+    end)
+  end
+
+  return achievements
+end
+
+function LeafVE:GetAchievementEntriesForPlayer(playerName, limit, forceRefresh)
+  local achievements = {}
+  local targetName = ShortName(playerName)
+  local me = ShortName(UnitName("player"))
+
+  if targetName and me and Lower(targetName) == Lower(me) then
+    achievements = self:GetLocalCompletedAchievementEntries(forceRefresh)
+  else
+    local cache = self:GetAchievementCacheForPlayer(targetName or playerName)
+    if cache then
+      for achId, achValue in pairs(cache) do
+        if achId ~= "_totalPoints" then
+          local timestamp = 0
+          local points = nil
+
+          if type(achValue) == "table" then
+            timestamp = tonumber(achValue.timestamp) or 0
+            points = tonumber(achValue.points)
+          elseif type(achValue) == "number" then
+            timestamp = achValue
+          end
+
+          local meta = self:GetAchievementMeta(achId)
+          local entry = CopyAchievementEntry(meta, timestamp, points)
+          if entry then
+            if entry.desc == "" and timestamp > 0 then
+              entry.desc = "Completed on "..date("%m/%d/%Y", timestamp)
+            end
+            table.insert(achievements, entry)
+          end
+        end
+      end
+
+      table.sort(achievements, function(a, b)
+        local aStamp = tonumber(a.timestamp) or 0
+        local bStamp = tonumber(b.timestamp) or 0
+        if aStamp == bStamp then
+          return Lower(tostring(a.name or a.id or "")) < Lower(tostring(b.name or b.id or ""))
+        end
+        return aStamp > bStamp
+      end)
+    end
+  end
+
+  if limit and limit > 0 and table.getn(achievements) > limit then
+    local trimmed = {}
+    for i = 1, limit do
+      trimmed[i] = achievements[i]
+    end
+    return trimmed
+  end
+
+  return achievements
+end
+
+function LeafVE:GetAchievementPointsForPlayer(playerName)
+  local targetName = ShortName(playerName)
+  local me = ShortName(UnitName("player"))
+
+  if targetName and me and Lower(targetName) == Lower(me) then
+    if type(GetTotalAchievementPoints) == "function" then
+      local ok, totalPoints = pcall(GetTotalAchievementPoints)
+      if ok and type(totalPoints) == "number" then
+        return totalPoints
+      end
+    end
+
+    local total = 0
+    local achievements = self:GetLocalCompletedAchievementEntries(false)
+    for _, entry in ipairs(achievements) do
+      total = total + (tonumber(entry.points) or 0)
+    end
+    if total > 0 then
+      return total
+    end
+  end
+
+  local cache = self:GetAchievementCacheForPlayer(targetName or playerName)
+  if cache then
+    if type(cache._totalPoints) == "number" then
+      return cache._totalPoints
+    end
+
+    local total = 0
+    for achId, achValue in pairs(cache) do
+      if achId ~= "_totalPoints" then
+        local points = nil
+        if type(achValue) == "table" and achValue.points then
+          points = tonumber(achValue.points)
+        end
+        if not points then
+          local meta = self:GetAchievementMeta(achId)
+          points = tonumber(meta and meta.points) or DEFAULT_ACHIEVEMENT_POINTS
+        end
+        total = total + points
+      end
+    end
+    return total
+  end
+
+  if LeafVE_AchTest and LeafVE_AchTest.API and LeafVE_AchTest.API.GetPlayerPoints then
+    return LeafVE_AchTest.API.GetPlayerPoints(playerName) or 0
+  end
+
+  return 0
+end
+
 local function InGuild() return (IsInGuild and IsInGuild()) and true or false end
 
 local function DayKeyFromTS(ts)
@@ -1193,7 +1749,7 @@ local function WeekStartTS(ts)
   local midnight = time(d)
   local wday = d.wday or 1
   
-  -- Week runs Wednesday→Tuesday so it ends on Tuesday (the WoW weekly reset day).
+  -- Week runs WednesdayÃ¢â€ â€™Tuesday so it ends on Tuesday (the WoW weekly reset day).
   -- Sunday=1, Monday=2, Tuesday=3, Wednesday=4, Thursday=5, Friday=6, Saturday=7
   local daysSinceWednesday
   if wday >= 4 then
@@ -1251,6 +1807,519 @@ local function FormatCompactCountdownText(secondsRemaining)
   local hours = math.floor((secondsRemaining % SECONDS_PER_DAY) / SECONDS_PER_HOUR)
   local minutes = math.floor((secondsRemaining % SECONDS_PER_HOUR) / 60)
   return string.format("%dd %dh %dm", days, hours, minutes)
+end
+
+function LeafVE:GetShinobiDutyTierInfo(tierKey)
+  local info = self.shinobiDutyTierInfo and self.shinobiDutyTierInfo[tostring(tierKey or "")]
+  if info then
+    return info
+  end
+  return { label = "Duty", lpReward = 0, repReward = 0, color = {0.8, 0.8, 0.8} }
+end
+
+function LeafVE:PositiveModulo(value, divisor)
+  divisor = math.abs(tonumber(divisor) or 0)
+  if divisor < 1 then
+    return 0
+  end
+  value = tonumber(value) or 0
+  return value - math.floor(value / divisor) * divisor
+end
+
+function LeafVE:GetStableHashSeed(seedText)
+  seedText = tostring(seedText or "")
+  local hash = 7
+  for i = 1, string.len(seedText) do
+    hash = self:PositiveModulo((hash * 33) + (string.byte(seedText, i) or 0) + i, 2147483647)
+  end
+  return hash
+end
+
+function LeafVE:GetShinobiDutyMetricDefinition(metricKey)
+  metricKey = tostring(metricKey or "")
+  for i = 1, table.getn(self.shinobiDutyMetricCatalog or {}) do
+    local entry = self.shinobiDutyMetricCatalog[i]
+    if entry and entry.key == metricKey then
+      return entry
+    end
+  end
+  return nil
+end
+
+function LeafVE:DoShinobiDutyNamesMatch(a, b)
+  local aName = ShortName(a)
+  local bName = ShortName(b)
+  if not aName or not bName then
+    return false
+  end
+  return Lower(aName) == Lower(bName)
+end
+
+function LeafVE:EnsureShinobiDutyDBState()
+  if type(LeafVE_DB) ~= "table" then
+    LeafVE_DB = {}
+  end
+  if type(LeafVE_GlobalDB) ~= "table" then
+    LeafVE_GlobalDB = {}
+  end
+  if type(LeafVE_DB.pointHistory) ~= "table" then
+    LeafVE_DB.pointHistory = {}
+  end
+  if type(LeafVE_DB.shoutouts) ~= "table" then
+    LeafVE_DB.shoutouts = {}
+  end
+  if type(LeafVE_DB.shinobiDuties) ~= "table" then
+    LeafVE_DB.shinobiDuties = { byWeek = {} }
+  end
+  if type(LeafVE_DB.shinobiDuties.byWeek) ~= "table" then
+    LeafVE_DB.shinobiDuties.byWeek = {}
+  end
+  if type(LeafVE_DB.shinobiDutyStats) ~= "table" then
+    LeafVE_DB.shinobiDutyStats = { weekKey = "", players = {} }
+  end
+  if type(LeafVE_DB.shinobiDutyStats.players) ~= "table" then
+    LeafVE_DB.shinobiDutyStats.players = {}
+  end
+  if type(LeafVE_DB.shinobiDutyRepBonuses) ~= "table" then
+    LeafVE_DB.shinobiDutyRepBonuses = {}
+  end
+  if type(LeafVE_GlobalDB.shinobiDutyRepBonuses) ~= "table" then
+    LeafVE_GlobalDB.shinobiDutyRepBonuses = {}
+  end
+  if type(LeafVE_GlobalDB.workOrders) ~= "table" then
+    LeafVE_GlobalDB.workOrders = {}
+  end
+end
+
+function LeafVE:EnsureShinobiDutyStorage()
+  self:EnsureShinobiDutyDBState()
+  if type(LeafVE_DB.shinobiDuties) ~= "table" then
+    LeafVE_DB.shinobiDuties = { byWeek = {} }
+  end
+  if type(LeafVE_DB.shinobiDuties.byWeek) ~= "table" then
+    LeafVE_DB.shinobiDuties.byWeek = {}
+  end
+  return LeafVE_DB.shinobiDuties
+end
+
+function LeafVE:EnsureShinobiDutyStats()
+  self:EnsureShinobiDutyDBState()
+  local wk = WeekKey()
+  if type(LeafVE_DB.shinobiDutyStats) ~= "table" or LeafVE_DB.shinobiDutyStats.weekKey ~= wk then
+    LeafVE_DB.shinobiDutyStats = { weekKey = wk, players = {} }
+  elseif type(LeafVE_DB.shinobiDutyStats.players) ~= "table" then
+    LeafVE_DB.shinobiDutyStats.players = {}
+  end
+  return LeafVE_DB.shinobiDutyStats
+end
+
+function LeafVE:GetShinobiDutyWeeklyStats(playerName)
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return nil
+  end
+  local bucket = self:EnsureShinobiDutyStats()
+  if type(bucket.players[shortName]) ~= "table" then
+    bucket.players[shortName] = {
+      groupHours = 0,
+      guildieHonorableKills = 0,
+    }
+  end
+  return bucket.players[shortName], bucket
+end
+
+function LeafVE:AddShinobiDutyWeeklyStat(playerName, statKey, amount)
+  local stats = self:GetShinobiDutyWeeklyStats(playerName)
+  amount = tonumber(amount) or 0
+  if not stats or not statKey or statKey == "" or amount <= 0 then
+    return 0
+  end
+  stats[statKey] = (tonumber(stats[statKey]) or 0) + amount
+  return stats[statKey]
+end
+
+function LeafVE:GetShinobiDutyWeekWindow(weekKey)
+  local currentWeekKey = WeekKey()
+  local startTS = WeekStartTS(Now())
+  if weekKey and weekKey ~= "" and weekKey ~= currentWeekKey and string.len(weekKey) == 8 then
+    local year = tonumber(string.sub(weekKey, 1, 4))
+    local month = tonumber(string.sub(weekKey, 5, 6))
+    local day = tonumber(string.sub(weekKey, 7, 8))
+    if year and month and day then
+      local parsed = time({year = year, month = month, day = day, hour = 0, min = 0, sec = 0})
+      if parsed and parsed > 0 then
+        startTS = parsed
+      end
+    end
+  end
+  return startTS, startTS + (7 * SECONDS_PER_DAY)
+end
+
+function LeafVE:GetWeeklyGuildieQuestCount(playerName, weekKey)
+  self:EnsureShinobiDutyDBState()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return 0
+  end
+  local startTS, endTS = self:GetShinobiDutyWeekWindow(weekKey)
+  local history = LeafVE_DB.pointHistory[shortName] or {}
+  local count = 0
+  for i = 1, table.getn(history) do
+    local entry = history[i]
+    local ts = tonumber(entry and entry.timestamp) or 0
+    local reason = tostring(entry and entry.reason or "")
+    if ts >= startTS and ts < endTS and (string.sub(reason, 1, 6) == "Quest:" or reason == "Quest completion") then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+function LeafVE:GetWeeklyShoutoutsGiven(playerName, weekKey)
+  self:EnsureShinobiDutyDBState()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return 0
+  end
+  local startTS, endTS = self:GetShinobiDutyWeekWindow(weekKey)
+  local shoutouts = LeafVE_DB.shoutouts and LeafVE_DB.shoutouts[shortName] or {}
+  local count = 0
+  for _, ts in pairs(shoutouts or {}) do
+    local shoutTs = tonumber(ts) or 0
+    if shoutTs >= startTS and shoutTs < endTS then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+function LeafVE:GetWeeklyWorkOrderDutyCount(playerName, metricKey, weekKey)
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return 0
+  end
+  local startTS, endTS = self:GetShinobiDutyWeekWindow(weekKey)
+  local now = Now()
+  local count = 0
+  for _, order in pairs(LeafVE_GlobalDB.workOrders or {}) do
+    if type(order) == "table" and self:IsValidWorkOrderRecord(order) then
+      local requester = ShortName(order.requester)
+      local fulfiller = ShortName(self:GetStoredWorkOrderFulfiller(order) or order.crafter or order.fulfiller)
+      if metricKey == "work_orders_created" then
+        local createdAt = tonumber(order.createdAt) or 0
+        if createdAt >= startTS and createdAt < endTS and requester and self:DoShinobiDutyNamesMatch(requester, shortName) and not IsWorkOrderPartialClaim(order) then
+          count = count + 1
+        end
+      elseif metricKey == "work_orders_completed" then
+        local completedAt = tonumber(order.completedAt) or 0
+        local status = self:GetEffectiveWorkOrderStatus(order, now)
+        if completedAt >= startTS and completedAt < endTS and fulfiller and self:DoShinobiDutyNamesMatch(fulfiller, shortName) and (status == "completed" or status == "finalized") then
+          count = count + 1
+        end
+      elseif metricKey == "work_orders_verified" then
+        local verifiedAt = GetWorkOrderVerificationTimestamp(order)
+        if verifiedAt >= startTS and verifiedAt < endTS and requester and self:DoShinobiDutyNamesMatch(requester, shortName) and self:GetEffectiveWorkOrderStatus(order, now) == "finalized" then
+          count = count + 1
+        end
+      end
+    end
+  end
+  return count
+end
+
+function LeafVE:GetShinobiDutyMetricProgress(playerName, duty)
+  local metricKey = type(duty) == "table" and duty.metricKey or tostring(duty or "")
+  local weekKey = type(duty) == "table" and duty.weekKey or WeekKey()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return 0
+  end
+  if metricKey == "group_hours" then
+    local stats = self:GetShinobiDutyWeeklyStats(shortName)
+    return tonumber(stats and stats.groupHours) or 0
+  elseif metricKey == "guildie_hks" then
+    local stats = self:GetShinobiDutyWeeklyStats(shortName)
+    return tonumber(stats and stats.guildieHonorableKills) or 0
+  elseif metricKey == "guildie_quests" then
+    return self:GetWeeklyGuildieQuestCount(shortName, weekKey)
+  elseif metricKey == "shoutouts_given" then
+    return self:GetWeeklyShoutoutsGiven(shortName, weekKey)
+  elseif metricKey == "work_orders_created" or metricKey == "work_orders_completed" or metricKey == "work_orders_verified" then
+    return self:GetWeeklyWorkOrderDutyCount(shortName, metricKey, weekKey)
+  end
+  return 0
+end
+
+function LeafVE:BuildShinobiDutyFromMetric(weekKey, tierKey, metricDef)
+  if type(metricDef) ~= "table" or type(metricDef.targets) ~= "table" then
+    return nil
+  end
+  local target = tonumber(metricDef.targets[tierKey])
+  if not target or target <= 0 then
+    return nil
+  end
+  local tierInfo = self:GetShinobiDutyTierInfo(tierKey)
+  return {
+    id = tostring(tierKey or "?") .. ":" .. tostring(metricDef.key or "metric"),
+    weekKey = weekKey,
+    tier = tierKey,
+    metricKey = metricDef.key,
+    title = tostring(metricDef.title or "Shinobi Duty"),
+    description = string.format(tostring(metricDef.description or "Complete %d objective(s) this week."), target),
+    progressLabel = tostring(metricDef.progressLabel or "Progress"),
+    sourceHint = tostring(metricDef.sourceHint or ""),
+    icon = metricDef.icon or LEAF_FALLBACK,
+    target = target,
+    lpReward = tonumber(metricDef.lpReward and metricDef.lpReward[tierKey]) or tonumber(tierInfo.lpReward) or 0,
+    repReward = tonumber(metricDef.repReward and metricDef.repReward[tierKey]) or tonumber(tierInfo.repReward) or 0,
+  }
+end
+
+function LeafVE:SelectShinobiDutyMetricForTier(tierKey, playerName, weekKey, usedMetrics)
+  local catalog = self.shinobiDutyMetricCatalog or {}
+  local count = table.getn(catalog)
+  if count < 1 then
+    return nil
+  end
+  local startIndex = self:PositiveModulo(self:GetStableHashSeed(tostring(playerName) .. ":" .. tostring(weekKey) .. ":" .. tostring(tierKey)), count) + 1
+  local fallback = nil
+  for offset = 0, count - 1 do
+    local idx = self:PositiveModulo((startIndex - 1) + offset, count) + 1
+    local candidate = catalog[idx]
+    if candidate and candidate.targets and candidate.targets[tierKey] then
+      fallback = fallback or candidate
+      if not usedMetrics or not usedMetrics[candidate.key] then
+        return candidate
+      end
+    end
+  end
+  return fallback
+end
+
+function LeafVE:EnsurePlayerShinobiDuties(playerName, weekKey)
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return nil
+  end
+  weekKey = weekKey or WeekKey()
+  local store = self:EnsureShinobiDutyStorage()
+  if type(store.byWeek[weekKey]) ~= "table" then
+    store.byWeek[weekKey] = {}
+  end
+  local state = store.byWeek[weekKey][shortName]
+  if type(state) == "table" and state.version == (self.shinobiDutyTemplateVersion or 1) and type(state.duties) == "table" and table.getn(state.duties) > 0 then
+    return state
+  end
+
+  state = {
+    version = self.shinobiDutyTemplateVersion or 1,
+    player = shortName,
+    weekKey = weekKey,
+    generatedAt = Now(),
+    duties = {},
+  }
+
+  local usedMetrics = {}
+  for i = 1, table.getn(self.shinobiDutyTierOrder or {}) do
+    local tierKey = self.shinobiDutyTierOrder[i]
+    local metricDef = self:SelectShinobiDutyMetricForTier(tierKey, shortName, weekKey, usedMetrics)
+    local duty = self:BuildShinobiDutyFromMetric(weekKey, tierKey, metricDef)
+    if duty then
+      table.insert(state.duties, duty)
+      usedMetrics[duty.metricKey] = true
+    end
+  end
+
+  store.byWeek[weekKey][shortName] = state
+  return state
+end
+
+function LeafVE:GetShinobiDutyRepBonusEntry(playerName)
+  self:EnsureShinobiDutyDBState()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return { name = nil, amount = 0, updatedAt = 0 }
+  end
+
+  local localEntry = LeafVE_DB.shinobiDutyRepBonuses and LeafVE_DB.shinobiDutyRepBonuses[shortName]
+  local sharedEntry = LeafVE_GlobalDB.shinobiDutyRepBonuses and LeafVE_GlobalDB.shinobiDutyRepBonuses[Lower(shortName)]
+  local selected = nil
+
+  local function Consider(entry)
+    if type(entry) ~= "table" then
+      return
+    end
+    if not selected then
+      selected = entry
+      return
+    end
+    local selectedUpdatedAt = tonumber(selected.updatedAt) or 0
+    local entryUpdatedAt = tonumber(entry.updatedAt) or 0
+    if entryUpdatedAt > selectedUpdatedAt then
+      selected = entry
+    elseif entryUpdatedAt == selectedUpdatedAt and (tonumber(entry.amount) or 0) > (tonumber(selected.amount) or 0) then
+      selected = entry
+    end
+  end
+
+  Consider(localEntry)
+  Consider(sharedEntry)
+  if selected then
+    return {
+      name = ShortName(selected.name or shortName) or shortName,
+      amount = math.max(0, tonumber(selected.amount) or 0),
+      updatedAt = tonumber(selected.updatedAt) or 0,
+    }
+  end
+  return { name = shortName, amount = 0, updatedAt = 0 }
+end
+
+function LeafVE:StoreShinobiDutyRepBonus(playerName, amount, updatedAt, suppressBroadcast)
+  self:EnsureShinobiDutyDBState()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return nil
+  end
+
+  amount = math.max(0, math.floor(tonumber(amount) or 0))
+  updatedAt = tonumber(updatedAt) or Now()
+  local existing = self:GetShinobiDutyRepBonusEntry(shortName)
+  if (tonumber(existing.updatedAt) or 0) > updatedAt then
+    return existing
+  end
+  if (tonumber(existing.updatedAt) or 0) == updatedAt and (tonumber(existing.amount) or 0) > amount then
+    return existing
+  end
+
+  local stored = {
+    name = shortName,
+    amount = amount,
+    updatedAt = updatedAt,
+  }
+  LeafVE_DB.shinobiDutyRepBonuses[shortName] = {
+    name = shortName,
+    amount = amount,
+    updatedAt = updatedAt,
+  }
+  LeafVE_GlobalDB.shinobiDutyRepBonuses[Lower(shortName)] = {
+    name = shortName,
+    amount = amount,
+    updatedAt = updatedAt,
+  }
+  self.workOrderReputationDirty = true
+
+  if not suppressBroadcast and InGuild() then
+    SendAddonMessage("LeafVE", "DUTYREP:" .. shortName .. ":" .. tostring(amount) .. ":" .. tostring(updatedAt), "GUILD")
+  end
+
+  if LeafVE.UI and LeafVE.UI.frame and LeafVE.UI.frame.IsVisible and LeafVE.UI.frame:IsVisible() then
+    if LeafVE.UI.activeTab == "workOrderRep" and LeafVE.UI.RefreshWorkOrderReputationPanel then
+      LeafVE.UI:RefreshWorkOrderReputationPanel()
+    elseif LeafVE.UI.activeTab == "shinobiDuties" and LeafVE.UI.RefreshShinobiDutiesPanel then
+      LeafVE.UI:RefreshShinobiDutiesPanel()
+    end
+  end
+
+  return stored
+end
+
+function LeafVE:BroadcastMyShinobiDutyRepBonus(force)
+  if not InGuild() then
+    return false
+  end
+
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return false
+  end
+
+  local entry = self:GetShinobiDutyRepBonusEntry(me)
+  local amount = tonumber(entry and entry.amount) or 0
+  local updatedAt = tonumber(entry and entry.updatedAt) or 0
+  if not force and amount <= 0 and updatedAt <= 0 then
+    return false
+  end
+
+  if updatedAt <= 0 then
+    updatedAt = Now()
+  end
+  SendAddonMessage("LeafVE", "DUTYREP:" .. me .. ":" .. tostring(amount) .. ":" .. tostring(updatedAt), "GUILD")
+  return true
+end
+
+function LeafVE:GetShinobiDutyRepBonusAmount(playerName)
+  local entry = self:GetShinobiDutyRepBonusEntry(playerName)
+  return tonumber(entry and entry.amount) or 0
+end
+
+function LeafVE:AwardShinobiDutyRepBonus(playerName, amount)
+  amount = math.max(0, math.floor(tonumber(amount) or 0))
+  if amount <= 0 then
+    return 0
+  end
+  local current = self:GetShinobiDutyRepBonusEntry(playerName)
+  local currentAmount = tonumber(current and current.amount) or 0
+  local updated = self:StoreShinobiDutyRepBonus(playerName, currentAmount + amount, Now())
+  return (tonumber(updated and updated.amount) or currentAmount) - currentAmount
+end
+
+function LeafVE:CompleteShinobiDuty(playerName, dutyState, duty)
+  self:EnsureShinobiDutyDBState()
+  local shortName = ShortName(playerName)
+  if not shortName or type(dutyState) ~= "table" or type(duty) ~= "table" or duty.completedAt then
+    return 0, 0
+  end
+
+  local tierInfo = self:GetShinobiDutyTierInfo(duty.tier)
+  duty.completedAt = Now()
+  duty.completedProgress = tonumber(duty.target) or 0
+
+  local lpAwarded = 0
+  local requestedLP = tonumber(duty.lpReward) or tonumber(tierInfo.lpReward) or 0
+  if requestedLP > 0 then
+    lpAwarded = tonumber(self:AddPoints(shortName, "G", requestedLP, true)) or 0
+    if lpAwarded > 0 then
+      self:AddToHistory(shortName, "G", lpAwarded, "Shinobi Duty [" .. tostring(duty.tier or "?") .. "]: " .. tostring(duty.title or "Duty"))
+      self:BroadcastLeaderboardData()
+    end
+  end
+
+  local repAwarded = self:AwardShinobiDutyRepBonus(shortName, tonumber(duty.repReward) or tonumber(tierInfo.repReward) or 0)
+  local rr = tierInfo.color and tierInfo.color[1] or THEME.gold[1]
+  local gg = tierInfo.color and tierInfo.color[2] or THEME.gold[2]
+  local bb = tierInfo.color and tierInfo.color[3] or THEME.gold[3]
+  local me = ShortName(UnitName("player"))
+  if me and self:DoShinobiDutyNamesMatch(me, shortName) then
+    if LeafVE_DB.options.enableNotifications ~= false then
+      self:ShowNotification(
+        "Shinobi Duty Complete!",
+        tostring(duty.title or "Duty") .. "  +" .. tostring(lpAwarded) .. " LP  +" .. tostring(repAwarded) .. " Rep",
+        duty.icon or LEAF_EMBLEM,
+        {rr, gg, bb, 1}
+      )
+    end
+    Print("|cFF" .. RGBToHex(rr, gg, bb) .. "Shinobi Duty Complete!|r [" .. tostring(duty.tier or "?") .. "] " .. tostring(duty.title or "Duty") .. "  +" .. tostring(lpAwarded) .. " LP  +" .. tostring(repAwarded) .. " Rep")
+  end
+
+  return lpAwarded, repAwarded
+end
+
+function LeafVE:RefreshShinobiDutyProgress(playerName)
+  local state = self:EnsurePlayerShinobiDuties(playerName, WeekKey())
+  if not state then
+    return nil
+  end
+  local shortName = ShortName(playerName)
+  for i = 1, table.getn(state.duties or {}) do
+    local duty = state.duties[i]
+    if type(duty) == "table" then
+      duty.cachedProgress = self:GetShinobiDutyMetricProgress(shortName, duty)
+      if not duty.completedAt and (tonumber(duty.cachedProgress) or 0) >= (tonumber(duty.target) or 0) then
+        self:CompleteShinobiDuty(shortName, state, duty)
+      end
+    end
+  end
+  return state
 end
 
 function LeafVE:GetTurtleRaidTimerColumns(now)
@@ -1372,6 +2441,9 @@ LeafVE.uiDefaultWidth = 1050
 LeafVE.uiMinHeight = 760
 LeafVE.uiMaxHeight = 1000
 LeafVE.uiDefaultHeight = 760
+LeafVE.uiMinScale = 0.70
+LeafVE.uiMaxScale = 1.00
+LeafVE.uiDefaultScale = 1.00
 
 function LeafVE:ClampUISize(width, height)
   local w = tonumber(width) or self.uiDefaultWidth
@@ -1381,6 +2453,14 @@ function LeafVE:ClampUISize(width, height)
   if h < self.uiMinHeight then h = self.uiMinHeight end
   if h > self.uiMaxHeight then h = self.uiMaxHeight end
   return w, h
+end
+
+function LeafVE:ClampUIScale(scale)
+  local s = tonumber(scale) or self.uiDefaultScale
+  if s < self.uiMinScale then s = self.uiMinScale end
+  if s > self.uiMaxScale then s = self.uiMaxScale end
+  s = math.floor((s * 100) + 0.5) / 100
+  return s
 end
 
 function LeafVE:ApplyUISize(width, height)
@@ -1399,8 +2479,27 @@ function LeafVE:ApplyUISize(width, height)
   return w, h
 end
 
+function LeafVE:ApplyUIScale(scale)
+  if not LeafVE_DB then LeafVE_DB = {} end
+  if not LeafVE_DB.ui then LeafVE_DB.ui = {} end
+  local s = self:ClampUIScale(scale)
+  LeafVE_DB.ui.scale = s
+  if self.UI and self.UI.frame and self.UI.frame.SetScale then
+    self.UI.frame:SetScale(s)
+  end
+  if self.UI and self.UI.RefreshPopupScales then
+    self.UI:RefreshPopupScales()
+  end
+  if self.UI and self.UI.RefreshOptions then
+    self.UI:RefreshOptions()
+  end
+  return s
+end
+
 function LeafVE:ResetUISize()
-  return self:ApplyUISize(self.uiDefaultWidth, self.uiDefaultHeight)
+  local w, h = self:ApplyUISize(self.uiDefaultWidth, self.uiDefaultHeight)
+  local s = self:ApplyUIScale(self.uiDefaultScale)
+  return w, h, s
 end
 
 local function MakeResizeHandle(f)
@@ -1465,13 +2564,127 @@ local function SetLeafButtonTextColor(btn, normalR, normalG, normalB, hoverR, ho
   end
 end
 
+local function SkinPlayerCardSection(frame, borderR, borderG, borderB, borderA, bgAlpha)
+  if not frame or not frame.SetBackdrop then
+    return
+  end
+
+  frame:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = {left = 3, right = 3, top = 3, bottom = 3}
+  })
+  frame:SetBackdropColor(0.04, 0.05, 0.08, bgAlpha or 0.9)
+  frame:SetBackdropBorderColor(borderR or THEME.soft[1], borderG or THEME.soft[2], borderB or THEME.soft[3], borderA or 0.9)
+
+  if not frame._leafPanelShade then
+    local shade = frame:CreateTexture(nil, "BACKGROUND")
+    shade:SetPoint("TOPLEFT", frame, "TOPLEFT", 3, -3)
+    shade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -3, 3)
+    shade:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    shade:SetGradientAlpha("VERTICAL", 0.16, 0.18, 0.22, 0.95, 0.05, 0.06, 0.09, 0.8)
+    frame._leafPanelShade = shade
+  end
+end
+
+local function AddPlayerCardPanelAccent(frame, accentR, accentG, accentB, accentA)
+  if not frame then
+    return nil
+  end
+
+  if not frame._leafPanelAccent then
+    local accent = frame:CreateTexture(nil, "ARTWORK")
+    accent:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -4)
+    accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -4)
+    accent:SetHeight(18)
+    accent:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    frame._leafPanelAccent = accent
+  end
+
+  frame._leafPanelAccent:SetVertexColor(
+    accentR or THEME.soft[1],
+    accentG or THEME.soft[2],
+    accentB or THEME.soft[3],
+    accentA or 0.16
+  )
+
+  return frame._leafPanelAccent
+end
+
+local function StylePlayerCardHeading(fontString, r, g, b)
+  if not fontString then
+    return
+  end
+
+  fontString:SetTextColor(r or THEME.gold[1], g or THEME.gold[2], b or THEME.gold[3])
+  if fontString.SetShadowOffset then
+    fontString:SetShadowOffset(1, -1)
+  end
+  if fontString.SetShadowColor then
+    fontString:SetShadowColor(0, 0, 0, 1)
+  end
+  if fontString.SetDrawLayer then
+    fontString:SetDrawLayer("OVERLAY", 7)
+  end
+end
+
+local function LayoutPlayerCardStatusBadges(ui)
+  if not ui or not ui.cardStatusPanel or not ui.cardWorkOrderRepBadge then
+    return
+  end
+
+  local badges = {}
+  local function AddBadge(frame, width)
+    if frame and frame:IsShown() then
+      table.insert(badges, {frame = frame, width = width})
+    end
+  end
+
+  ui.cardWorkOrderRepBadge:Show()
+  AddBadge(ui.cardWorkOrderRepBadge, 152)
+  AddBadge(ui.cardWorkOrderCrafterRankBadge, 146)
+  AddBadge(ui.cardWeeklyCharacterRankBadge, 150)
+
+  local spacing = 6
+  local totalWidth = 0
+  for i = 1, table.getn(badges) do
+    totalWidth = totalWidth + (badges[i].width or 0)
+  end
+  totalWidth = totalWidth + (math.max(0, table.getn(badges) - 1) * spacing)
+
+  local availableWidth = (ui.cardStatusPanel:GetWidth() or 0) - 18
+  if availableWidth > 0 and totalWidth > availableWidth then
+    local scale = availableWidth / totalWidth
+    totalWidth = 0
+    for i = 1, table.getn(badges) do
+      local scaledWidth = math.max(116, math.floor((badges[i].width or 0) * scale))
+      badges[i].width = scaledWidth
+      totalWidth = totalWidth + scaledWidth
+    end
+    totalWidth = totalWidth + (math.max(0, table.getn(badges) - 1) * spacing)
+  end
+
+  local cursorX = -math.floor(totalWidth / 2)
+  for i = 1, table.getn(badges) do
+    local frame = badges[i].frame
+    local width = badges[i].width or 0
+    frame:SetWidth(width)
+    frame:SetFrameLevel((ui.cardStatusPanel:GetFrameLevel() or 0) + 8)
+    frame:ClearAllPoints()
+    frame:SetPoint("LEFT", ui.cardStatusPanel, "CENTER", cursorX, 0)
+    cursorX = cursorX + width + spacing
+  end
+end
+
 local function EnsureDB()
   if not LeafVE_DB then LeafVE_DB = {} end
+  if not LeafVE_GlobalDB then LeafVE_GlobalDB = {} end
   PurgeDisabledFeatureData()
   -- Detect version upgrade and notify the player once per session.
   if LeafVE_DB.addonVersion ~= LeafVE.version then
     if LeafVE_DB.addonVersion then
-      Print("|cFFFFD700Leaf Village Legends updated from v"..LeafVE_DB.addonVersion.." → v"..LeafVE.version..". Old-version peers will be ignored until they update.|r")
+      Print("|cFFFFD700Leaf Village Legends updated from v"..LeafVE_DB.addonVersion.." Ã¢â€ â€™ v"..LeafVE.version..". Old-version peers will be ignored until they update.|r")
     end
     LeafVE_DB.addonVersion = LeafVE.version
   end
@@ -1486,6 +2699,7 @@ local function EnsureDB()
   if not LeafVE_DB.pointHistory then LeafVE_DB.pointHistory = {} end
   if not LeafVE_DB.badges then LeafVE_DB.badges = {} end
   if not LeafVE_DB.badgesAnnounced then LeafVE_DB.badgesAnnounced = {} end
+  if not LeafVE_DB.equippedTitles then LeafVE_DB.equippedTitles = {} end
   if not LeafVE_DB.attendance then LeafVE_DB.attendance = {} end
   if not LeafVE_DB.guildJoinDate then LeafVE_DB.guildJoinDate = {} end
   if type(LeafVE_DB.weeklyRecap) ~= "table" then LeafVE_DB.weeklyRecap = {} end
@@ -1498,7 +2712,9 @@ local function EnsureDB()
   if not LeafVE_DB.questCompletions then LeafVE_DB.questCompletions = {} end
   if not LeafVE_DB.groupSessions then LeafVE_DB.groupSessions = {} end
   if not LeafVE_DB.groupPointsToday then LeafVE_DB.groupPointsToday = {} end
+  if not LeafVE_DB.pvpStats then LeafVE_DB.pvpStats = {} end
   if LeafVE_DB.lastLogoutAt == nil then LeafVE_DB.lastLogoutAt = 0 end
+  if LeafVE_DB.lastLoginBriefingAt == nil then LeafVE_DB.lastLoginBriefingAt = 0 end
   if LeafVE_DB.workOrderLoginAlertAt == nil then LeafVE_DB.workOrderLoginAlertAt = 0 end
   if LeafVE_DB.lastOutdatedVersionPopupAt == nil then LeafVE_DB.lastOutdatedVersionPopupAt = 0 end
   if LeafVE_DB.latestKnownAddonVersion == nil or LeafVE_DB.latestKnownAddonVersion == "" then
@@ -1508,7 +2724,14 @@ local function EnsureDB()
   if not LeafVE_DB.workOrderFinalRewardDaily then LeafVE_DB.workOrderFinalRewardDaily = {} end
   if not LeafVE_DB.workOrderFinalRewardClaims then LeafVE_DB.workOrderFinalRewardClaims = {} end
   if not LeafVE_DB.workOrderFinalRewardCarry then LeafVE_DB.workOrderFinalRewardCarry = {} end
+  if type(LeafVE_DB.shinobiDuties) ~= "table" then LeafVE_DB.shinobiDuties = { byWeek = {} } end
+  if type(LeafVE_DB.shinobiDuties.byWeek) ~= "table" then LeafVE_DB.shinobiDuties.byWeek = {} end
+  if type(LeafVE_DB.shinobiDutyStats) ~= "table" then LeafVE_DB.shinobiDutyStats = { weekKey = "", players = {} } end
+  if type(LeafVE_DB.shinobiDutyStats.players) ~= "table" then LeafVE_DB.shinobiDutyStats.players = {} end
+  if type(LeafVE_DB.shinobiDutyRepBonuses) ~= "table" then LeafVE_DB.shinobiDutyRepBonuses = {} end
+  if type(LeafVE_GlobalDB.shinobiDutyRepBonuses) ~= "table" then LeafVE_GlobalDB.shinobiDutyRepBonuses = {} end
   if not LeafVE_DB.guildieGroupHours then LeafVE_DB.guildieGroupHours = {} end
+  if not LeafVE_DB.guildieHonorableKills then LeafVE_DB.guildieHonorableKills = {} end
   if not LeafVE_DB.lboard then LeafVE_DB.lboard = { alltime = {}, weekly = {}, season = {}, updatedAt = {}, weeklyVersion = {} } end
   -- Ensure sub-tables exist (migration: older versions may not have all sub-tables)
   if not LeafVE_DB.lboard.alltime then LeafVE_DB.lboard.alltime = {} end
@@ -1530,6 +2753,8 @@ local function EnsureDB()
   if LeafVE_DB.ui.w == nil then LeafVE_DB.ui.w = LeafVE.uiDefaultWidth end
   if LeafVE_DB.ui.h == nil then LeafVE_DB.ui.h = LeafVE.uiDefaultHeight end
   LeafVE_DB.ui.w, LeafVE_DB.ui.h = LeafVE:ClampUISize(LeafVE_DB.ui.w, LeafVE_DB.ui.h)
+  if LeafVE_DB.ui.scale == nil then LeafVE_DB.ui.scale = LeafVE.uiDefaultScale end
+  LeafVE_DB.ui.scale = LeafVE:ClampUIScale(LeafVE_DB.ui.scale)
   if LeafVE_DB.options.officerRankThreshold == nil then LeafVE_DB.options.officerRankThreshold = 4 end
   if LeafVE_DB.options.showOfflineMembers == nil then LeafVE_DB.options.showOfflineMembers = true end
   if LeafVE_DB.options.minimapPos == nil then LeafVE_DB.options.minimapPos = 220 end
@@ -1540,6 +2765,10 @@ local function EnsureDB()
   if LeafVE_DB.options.enableWorkOrderChatMessages == nil then LeafVE_DB.options.enableWorkOrderChatMessages = true end
   if LeafVE_DB.options.allianceAutoJoin == nil then LeafVE_DB.options.allianceAutoJoin = true end
   if LeafVE_DB.options.enableWorkOrderLoginAlerts == nil then LeafVE_DB.options.enableWorkOrderLoginAlerts = true end
+  if type(LeafVE_DB.allianceGuilds) ~= "table" then LeafVE_DB.allianceGuilds = {} end
+  if type(LeafVE_DB.pendingAllianceRequests) ~= "table" then LeafVE_DB.pendingAllianceRequests = {} end
+  if type(LeafVE_DB.allianceChatLog) ~= "table" then LeafVE_DB.allianceChatLog = {} end
+  if LeafVE_DB.ui.welcomeSection == nil or LeafVE_DB.ui.welcomeSection == "" then LeafVE_DB.ui.welcomeSection = "guide" end
   if LeafVE_DB.options.bossPoints == nil then LeafVE_DB.options.bossPoints = INSTANCE_BOSS_POINTS end
   if LeafVE_DB.options.instanceCompletionPoints == nil then LeafVE_DB.options.instanceCompletionPoints = INSTANCE_COMPLETION_POINTS end
   if LeafVE_DB.options.questPoints == nil then LeafVE_DB.options.questPoints = QUEST_POINTS end
@@ -1555,6 +2784,7 @@ local function EnsureDB()
   if not LeafVE_GlobalDB then LeafVE_GlobalDB = {} end
   if not LeafVE_GlobalDB.playerNotes then LeafVE_GlobalDB.playerNotes = {} end
   if not LeafVE_GlobalDB.achievementCache then LeafVE_GlobalDB.achievementCache = {} end
+  if not LeafVE_GlobalDB.titleCache then LeafVE_GlobalDB.titleCache = {} end
   if not LeafVE_GlobalDB.gearCache then LeafVE_GlobalDB.gearCache = {} end
   if not LeafVE_GlobalDB.specCache then LeafVE_GlobalDB.specCache = {} end
   if not LeafVE_GlobalDB.talentCache then LeafVE_GlobalDB.talentCache = {} end
@@ -1567,6 +2797,9 @@ local function EnsureDB()
   if not LeafVE_GlobalDB.workOrderCrafterSignups then LeafVE_GlobalDB.workOrderCrafterSignups = {} end
   if not LeafVE_GlobalDB.workOrderCrafterSignupMeta then LeafVE_GlobalDB.workOrderCrafterSignupMeta = {} end
   if not LeafVE_GlobalDB.workOrderIdentityLinks then LeafVE_GlobalDB.workOrderIdentityLinks = {} end
+  if type(LeafVE_GlobalDB.allianceRosters) ~= "table" then LeafVE_GlobalDB.allianceRosters = {} end
+  if type(LeafVE_GlobalDB.allianceAccessSnapshot) ~= "table" then LeafVE_GlobalDB.allianceAccessSnapshot = { updatedAt = 0, guilds = {} } end
+  if type(LeafVE_GlobalDB.allianceAccessSnapshot.guilds) ~= "table" then LeafVE_GlobalDB.allianceAccessSnapshot.guilds = {} end
   if LeafVE.guildBankEnabled == true then
     if not LeafVE_GlobalDB.guildBankConfig then LeafVE_GlobalDB.guildBankConfig = { owner = LeafVE.guildBankOwner, updatedAt = 0, updatedBy = "" } end
     if not LeafVE_GlobalDB.guildBankCache then LeafVE_GlobalDB.guildBankCache = { owner = LeafVE.guildBankOwner, updatedAt = 0, counts = {}, goldCopper = 0 } end
@@ -1643,6 +2876,1105 @@ local function SamePlayerName(a, b)
   local bn = ShortName(b)
   if not an or not bn then return false end
   return Lower(an) == Lower(bn)
+end
+
+function LeafVE:GetPlayerGuildName(unitToken)
+  local guildName = nil
+  if _G.GetGuildInfo then
+    guildName = _G.GetGuildInfo(unitToken or "player")
+  end
+  return Trim(guildName or "")
+end
+
+function LeafVE:GetAllianceGuildList()
+  EnsureDB()
+
+  local guilds = {}
+  local seen = {}
+  local homeGuild = self:GetPlayerGuildName("player")
+  if homeGuild ~= "" then
+    local lowerHome = Lower(homeGuild)
+    seen[lowerHome] = true
+    table.insert(guilds, {
+      name = homeGuild,
+      lowerName = lowerHome,
+      isHomeGuild = true,
+    })
+  end
+
+  for lowerName, entry in pairs(LeafVE_DB.allianceGuilds or {}) do
+    local guildName = Trim((type(entry) == "table" and entry.name) or lowerName or "")
+    local normalizedLower = Lower(guildName)
+    if guildName ~= "" and not seen[normalizedLower] then
+      seen[normalizedLower] = true
+      table.insert(guilds, {
+        name = guildName,
+        lowerName = normalizedLower,
+        isHomeGuild = false,
+      })
+    end
+  end
+
+  table.sort(guilds, function(a, b)
+    if a.isHomeGuild ~= b.isHomeGuild then
+      return a.isHomeGuild and true or false
+    end
+    return Lower(a.name or "") < Lower(b.name or "")
+  end)
+
+  return guilds
+end
+
+function LeafVE:GetAllianceBroadcastGuildList()
+  EnsureDB()
+
+  local guilds = {}
+  local seen = {}
+
+  local homeGuild = self:GetPlayerGuildName("player")
+  if homeGuild ~= "" then
+    local lowerHome = Lower(homeGuild)
+    seen[lowerHome] = true
+    table.insert(guilds, homeGuild)
+  end
+
+  for _, entry in pairs(LeafVE_DB.allianceGuilds or {}) do
+    local guildName = Trim((type(entry) == "table" and entry.name) or entry or "")
+    local lowerName = Lower(guildName)
+    if guildName ~= "" and not seen[lowerName] then
+      seen[lowerName] = true
+      table.insert(guilds, guildName)
+    end
+  end
+
+  table.sort(guilds, function(a, b)
+    if homeGuild ~= "" then
+      local aIsHome = Lower(a or "") == Lower(homeGuild)
+      local bIsHome = Lower(b or "") == Lower(homeGuild)
+      if aIsHome ~= bIsHome then
+        return aIsHome and true or false
+      end
+    end
+    return Lower(a or "") < Lower(b or "")
+  end)
+
+  return guilds
+end
+
+function LeafVE:SetAllianceAccessSnapshot(updatedAt, guildNames)
+  EnsureDB()
+
+  local snapshotAt = tonumber(updatedAt) or Now()
+  local existing = LeafVE_GlobalDB.allianceAccessSnapshot
+  if type(existing) == "table" and tonumber(existing.updatedAt or 0) > snapshotAt then
+    return false
+  end
+
+  local normalized = {}
+  local seen = {}
+  for i = 1, table.getn(guildNames or {}) do
+    local guildName = Trim(guildNames[i] or "")
+    local lowerName = Lower(guildName)
+    if guildName ~= "" and not seen[lowerName] then
+      seen[lowerName] = true
+      table.insert(normalized, guildName)
+    end
+  end
+  table.sort(normalized, function(a, b) return Lower(a or "") < Lower(b or "") end)
+
+  LeafVE_GlobalDB.allianceAccessSnapshot = {
+    updatedAt = snapshotAt,
+    guilds = normalized,
+  }
+  return true
+end
+
+function LeafVE:GetAllianceAccessSnapshot()
+  EnsureDB()
+  if type(LeafVE_GlobalDB.allianceAccessSnapshot) ~= "table" then
+    LeafVE_GlobalDB.allianceAccessSnapshot = { updatedAt = 0, guilds = {} }
+  end
+  if type(LeafVE_GlobalDB.allianceAccessSnapshot.guilds) ~= "table" then
+    LeafVE_GlobalDB.allianceAccessSnapshot.guilds = {}
+  end
+  return LeafVE_GlobalDB.allianceAccessSnapshot
+end
+
+function LeafVE:IsAllianceGuildAuthorized(guildName)
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return false
+  end
+
+  if not self.isAllianceStandalone then
+    local homeGuild = self:GetPlayerGuildName("player")
+    if homeGuild ~= "" and Lower(homeGuild) == Lower(trimmedGuild) then
+      return true
+    end
+
+    for _, allowedGuild in ipairs(self:GetAllianceBroadcastGuildList()) do
+      if Lower(allowedGuild or "") == Lower(trimmedGuild) then
+        return true
+      end
+    end
+  end
+
+  local snapshot = self:GetAllianceAccessSnapshot()
+  for i = 1, table.getn(snapshot.guilds or {}) do
+    if Lower(snapshot.guilds[i] or "") == Lower(trimmedGuild) then
+      return true
+    end
+  end
+
+  return false
+end
+
+function LeafVE:BroadcastAllianceAccessSnapshot(force)
+  local channelId = self:GetAllianceChannelId()
+  if channelId <= 0 then
+    if force then
+      self:JoinAllianceChannel(false, false)
+      self:ScheduleDeferred("leafve_alliance_access_retry", 1.0, function()
+        LeafVE:BroadcastAllianceAccessSnapshot(false)
+      end)
+    end
+    return false
+  end
+
+  local now = Now()
+  self.lastAllianceAccessBroadcastAt = self.lastAllianceAccessBroadcastAt or 0
+  if not force and (now - self.lastAllianceAccessBroadcastAt) < 10 then
+    return false
+  end
+
+  local guilds = self:GetAllianceBroadcastGuildList()
+  self:SetAllianceAccessSnapshot(now, guilds)
+
+  local fields = { tostring(now) }
+  for i = 1, table.getn(guilds) do
+    table.insert(fields, EncodeTalentField(guilds[i] or ""))
+  end
+
+  self.lastAllianceAccessBroadcastAt = now
+  self:SendAllianceControlMessage("CFGSYNC:", fields)
+  return true
+end
+
+function LeafVE:RequestAllianceAccessSnapshot()
+  return false
+end
+
+function LeafVE:BroadcastAllianceAccessDecision(guildName, decision)
+  local trimmedGuild = Trim(guildName or "")
+  local trimmedDecision = Lower(Trim(decision or ""))
+  if trimmedGuild == "" or trimmedDecision == "" then
+    return false
+  end
+
+  local channelId = self:GetAllianceChannelId()
+  if channelId <= 0 then
+    self:JoinAllianceChannel(false, false)
+    self:ScheduleDeferred("leafve_alliance_access_decision_" .. Lower(trimmedGuild), 1.0, function()
+      LeafVE:BroadcastAllianceAccessDecision(trimmedGuild, trimmedDecision)
+    end)
+    return false
+  end
+
+  return self:SendAllianceControlMessage("ACCESSRESP:", {
+    EncodeTalentField(trimmedGuild),
+    EncodeTalentField(trimmedDecision),
+    tostring(Now()),
+  })
+end
+
+function LeafVE:GetAllianceAccessAddonChatType()
+  local raidCount = type(GetNumRaidMembers) == "function" and tonumber(GetNumRaidMembers()) or 0
+  if raidCount and raidCount > 0 then
+    return "RAID"
+  end
+
+  local partyCount = type(GetNumPartyMembers) == "function" and tonumber(GetNumPartyMembers()) or 0
+  if partyCount and partyCount > 0 then
+    return "PARTY"
+  end
+
+  return nil
+end
+
+function LeafVE:SendAllianceAccessGroupDecision(targetPlayer, guildName, decision)
+  local trimmedGuild = Trim(guildName or "")
+  local trimmedDecision = Lower(Trim(decision or ""))
+  local chatType = self:GetAllianceAccessAddonChatType()
+  if trimmedGuild == "" or trimmedDecision == "" or chatType == nil or type(SendAddonMessage) ~= "function" then
+    return false
+  end
+
+  local fieldSep = (self.allianceChat and self.allianceChat.fieldSep) or TALENT_RECORD_SEP
+  local payload = "ACCESSRESP:" .. table.concat({
+    EncodeTalentField(trimmedGuild),
+    EncodeTalentField(trimmedDecision),
+    tostring(Now()),
+  }, fieldSep)
+  SendAddonMessage(self.prefix, payload, chatType)
+  return true
+end
+
+function LeafVE:SendAllianceGroupAddonMessage(payload)
+  local chatType = self:GetAllianceAccessAddonChatType()
+  if chatType == nil or type(SendAddonMessage) ~= "function" then
+    return false
+  end
+
+  local maxPayloadLength = math.max(1, 254 - string.len(tostring(self.prefix or "")))
+  if string.len(tostring(payload or "")) > maxPayloadLength then
+    Print("Alliance addon payload was too large for 3.3.5 and was skipped.")
+    return false
+  end
+
+  SendAddonMessage(self.prefix, payload, chatType)
+  return true
+end
+
+function LeafVE:RunAllianceSafe(label, callback)
+  if type(callback) ~= "function" then
+    return false, "missing callback"
+  end
+
+  local ok, result = pcall(callback)
+  if not ok then
+    Print("Alliance " .. tostring(label or "operation") .. " error: " .. tostring(result))
+    return false, tostring(result)
+  end
+  return true, result
+end
+
+function LeafVE:AddAllianceGuild(guildName)
+  EnsureDB()
+
+  if not self:IsAdminRank() then
+    return false, "Only Kage and Hokage can manage alliances."
+  end
+
+  local trimmed = Trim(guildName or "")
+  if trimmed == "" then
+    return false, "Enter a guild name first."
+  end
+
+  local homeGuild = self:GetPlayerGuildName("player")
+  if homeGuild ~= "" and Lower(homeGuild) == Lower(trimmed) then
+    return false, "Your guild is already on the alliance board."
+  end
+
+  local lowerName = Lower(trimmed)
+  local requestEntry = LeafVE_DB.pendingAllianceRequests[lowerName]
+  local requestTarget = requestEntry and requestEntry.requestedBy or nil
+  LeafVE_DB.allianceGuilds[lowerName] = {
+    name = trimmed,
+    addedAt = Now(),
+    addedBy = ShortName(UnitName("player")) or "",
+  }
+  LeafVE_DB.pendingAllianceRequests[lowerName] = nil
+  local okSnapshot, errSnapshot = self:RunAllianceSafe("access snapshot", function()
+    LeafVE:SetAllianceAccessSnapshot(Now(), LeafVE:GetAllianceBroadcastGuildList())
+  end)
+  if not okSnapshot then
+    return false, errSnapshot or "Unable to update alliance access snapshot."
+  end
+
+  self:RunAllianceSafe("access channel snapshot", function()
+    LeafVE:BroadcastAllianceAccessSnapshot(true)
+  end)
+  if requestTarget and requestTarget ~= "" then
+    self:RunAllianceSafe("group approval decision", function()
+      LeafVE:SendAllianceAccessGroupDecision(requestTarget, trimmed, "approved")
+    end)
+  end
+  self:RunAllianceSafe("group initial roster sync", function()
+    LeafVE:BroadcastAllianceRosterSnapshot(true)
+  end)
+  self:RunAllianceSafe("channel approval decision", function()
+    LeafVE:BroadcastAllianceAccessDecision(trimmed, "approved")
+  end)
+  return true
+end
+
+function LeafVE:RemoveAllianceGuild(guildName)
+  EnsureDB()
+
+  if not self:IsAdminRank() then
+    return false, "Only Kage and Hokage can manage alliances."
+  end
+
+  local trimmed = Trim(guildName or "")
+  if trimmed == "" then
+    return false, "Select an alliance guild first."
+  end
+
+  local homeGuild = self:GetPlayerGuildName("player")
+  if homeGuild ~= "" and Lower(homeGuild) == Lower(trimmed) then
+    return false, "Your home guild cannot be removed from the alliance board."
+  end
+
+  LeafVE_DB.allianceGuilds[Lower(trimmed)] = nil
+  LeafVE_DB.pendingAllianceRequests[Lower(trimmed)] = nil
+  local okSnapshot, errSnapshot = self:RunAllianceSafe("access snapshot", function()
+    LeafVE:SetAllianceAccessSnapshot(Now(), LeafVE:GetAllianceBroadcastGuildList())
+  end)
+  if not okSnapshot then
+    return false, errSnapshot or "Unable to update alliance access snapshot."
+  end
+
+  self:RunAllianceSafe("access channel snapshot", function()
+    LeafVE:BroadcastAllianceAccessSnapshot(true)
+  end)
+  self:RunAllianceSafe("channel remove decision", function()
+    LeafVE:BroadcastAllianceAccessDecision(trimmed, "removed")
+  end)
+  return true
+end
+
+function LeafVE:GetPendingAllianceAccessRequests()
+  EnsureDB()
+
+  local requests = {}
+  for lowerGuild, entry in pairs(LeafVE_DB.pendingAllianceRequests or {}) do
+    if type(entry) == "table" then
+      local guildName = Trim(entry.guildName or entry.name or lowerGuild or "")
+      if guildName ~= "" then
+        table.insert(requests, {
+          guildName = guildName,
+          lowerGuild = Lower(guildName),
+          requestedBy = ShortName(entry.requestedBy) or Trim(entry.requestedBy or ""),
+          requestedAt = tonumber(entry.requestedAt) or 0,
+        })
+      end
+    end
+  end
+
+  table.sort(requests, function(a, b)
+    local at = tonumber(a.requestedAt or 0)
+    local bt = tonumber(b.requestedAt or 0)
+    if at == bt then
+      return Lower(a.guildName or "") < Lower(b.guildName or "")
+    end
+    return at > bt
+  end)
+
+  return requests
+end
+
+function LeafVE:QueueAllianceAccessRequest(guildName, requestedBy, requestedAt)
+  EnsureDB()
+
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return false, "Missing guild name."
+  end
+
+  local lowerGuild = Lower(trimmedGuild)
+  if self:IsAllianceGuildAuthorized(trimmedGuild) then
+    self:BroadcastAllianceAccessSnapshot(true)
+    if requestedBy and requestedBy ~= "" then
+      self:SendAllianceAccessGroupDecision(requestedBy, trimmedGuild, "approved")
+    end
+    self:BroadcastAllianceAccessDecision(trimmedGuild, "approved")
+    return false, "Guild already has alliance access."
+  end
+
+  local existing = LeafVE_DB.pendingAllianceRequests[lowerGuild]
+  local isNew = type(existing) ~= "table"
+  LeafVE_DB.pendingAllianceRequests[lowerGuild] = {
+    guildName = trimmedGuild,
+    requestedBy = ShortName(requestedBy) or Trim(requestedBy or ""),
+    requestedAt = tonumber(requestedAt) or Now(),
+  }
+  return isNew, nil
+end
+
+function LeafVE:ClearAllianceAccessRequest(guildName)
+  EnsureDB()
+
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return false
+  end
+  LeafVE_DB.pendingAllianceRequests[Lower(trimmedGuild)] = nil
+  return true
+end
+
+function LeafVE:ApproveAllianceAccessRequest(guildName)
+  local trimmedGuild = Trim(guildName or "")
+  local requestEntry = LeafVE_DB and LeafVE_DB.pendingAllianceRequests and LeafVE_DB.pendingAllianceRequests[Lower(trimmedGuild)]
+  local requestTarget = requestEntry and requestEntry.requestedBy or nil
+  local ok, err = self:RunAllianceSafe("approve request", function()
+    local approved, approveErr = LeafVE:AddAllianceGuild(trimmedGuild)
+    if not approved then
+      error(tostring(approveErr or "Unable to approve request."))
+    end
+    return true
+  end)
+  if ok then
+    self:ClearAllianceAccessRequest(trimmedGuild)
+  end
+  return ok, err
+end
+
+function LeafVE:DenyAllianceAccessRequest(guildName)
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return false, "Select a pending request first."
+  end
+  local requestEntry = LeafVE_DB and LeafVE_DB.pendingAllianceRequests and LeafVE_DB.pendingAllianceRequests[Lower(trimmedGuild)]
+  local requestTarget = requestEntry and requestEntry.requestedBy or nil
+  self:ClearAllianceAccessRequest(trimmedGuild)
+  if requestTarget and requestTarget ~= "" then
+    self:RunAllianceSafe("group deny decision", function()
+      LeafVE:SendAllianceAccessGroupDecision(requestTarget, trimmedGuild, "denied")
+    end)
+  end
+  self:RunAllianceSafe("channel deny decision", function()
+    LeafVE:BroadcastAllianceAccessDecision(trimmedGuild, "denied")
+  end)
+  return true
+end
+
+function LeafVE:ShowAllianceAccessApproval(guildName)
+  if not self:IsAdminRank() or not self:HasLeafAccess() then
+    return false
+  end
+  if not LeafVE.UI or not LeafVE.UI.Build then
+    return false
+  end
+
+  if not LeafVE.UI.frame then
+    LeafVE.UI:Build()
+  end
+  if not LeafVE.UI.frame then
+    return false
+  end
+
+  LeafVE.UI.activeCategory = "welcome"
+  LeafVE.UI.activeNavSubTab = nil
+  LeafVE.UI.activeTab = "welcome"
+  if LeafVE.UI.navLastTabByCategory then
+    LeafVE.UI.navLastTabByCategory.welcome = "welcome"
+  end
+
+  if not LeafVE.UI.frame:IsVisible() then
+    LeafVE.UI.frame:Show()
+  end
+
+  if LeafVE.UI.SetWelcomeSection then
+    LeafVE.UI:SetWelcomeSection("alliance")
+  end
+  if LeafVE.UI.panels and LeafVE.UI.panels.welcome then
+    LeafVE.UI.panels.welcome.selectedAllianceRequestGuild = Trim(guildName or "")
+  end
+  if LeafVE.UI.Refresh then
+    LeafVE.UI:Refresh()
+  end
+  if LeafVE.UI.RefreshAllianceWelcomePanel then
+    LeafVE.UI:RefreshAllianceWelcomePanel()
+  end
+  return true
+end
+
+function LeafVE:SetAllianceRosterSnapshot(guildName, updatedAt, members, sourcePlayer)
+  EnsureDB()
+
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return false
+  end
+
+  local lowerGuild = Lower(trimmedGuild)
+  local existing = LeafVE_GlobalDB.allianceRosters and LeafVE_GlobalDB.allianceRosters[lowerGuild]
+  updatedAt = tonumber(updatedAt) or Now()
+  if existing and tonumber(existing.updatedAt or 0) > updatedAt then
+    return false
+  end
+
+  local normalizedMembers = {}
+  for i = 1, table.getn(members or {}) do
+    local member = members[i]
+    if type(member) == "table" and Trim(member.name or "") ~= "" then
+      table.insert(normalizedMembers, {
+        name = self:GetStoredDisplayPlayerName(member.name),
+        rank = Trim(member.rank or ""),
+        level = tonumber(member.level) or 0,
+        classTag = string.upper(Trim(member.classTag or "UNKNOWN")),
+        online = member.online == nil and true or (member.online and true or false),
+      })
+    end
+  end
+
+  table.sort(normalizedMembers, function(a, b)
+    return Lower(a.name or "") < Lower(b.name or "")
+  end)
+
+  LeafVE_GlobalDB.allianceRosters[lowerGuild] = {
+    guildName = trimmedGuild,
+    updatedAt = updatedAt,
+    sourcePlayer = ShortName(sourcePlayer) or "",
+    members = normalizedMembers,
+    onlineCount = table.getn(normalizedMembers),
+  }
+  return true
+end
+
+function LeafVE:ReceiveAllianceRosterChunk(sourcePlayer, guildName, updatedAt, chunkIndex, totalChunks, payloadChunk)
+  local lowerGuild = Lower(guildName or "")
+  if lowerGuild == "" then
+    return false
+  end
+
+  updatedAt = tonumber(updatedAt) or 0
+  chunkIndex = tonumber(chunkIndex) or 1
+  totalChunks = math.max(1, tonumber(totalChunks) or 1)
+  payloadChunk = payloadChunk or ""
+
+  self.pendingAllianceRosterSyncs = self.pendingAllianceRosterSyncs or {}
+  local pending = self.pendingAllianceRosterSyncs[lowerGuild]
+  if type(pending) ~= "table" or tonumber(pending.updatedAt or 0) ~= updatedAt then
+    pending = {
+      guildName = guildName,
+      updatedAt = updatedAt,
+      sourcePlayer = ShortName(sourcePlayer) or "",
+      totalChunks = totalChunks,
+      chunks = {},
+    }
+    self.pendingAllianceRosterSyncs[lowerGuild] = pending
+  end
+
+  pending.totalChunks = totalChunks
+  pending.chunks[chunkIndex] = payloadChunk
+
+  local receivedCount = 0
+  for i = 1, totalChunks do
+    if pending.chunks[i] ~= nil then
+      receivedCount = receivedCount + 1
+    end
+  end
+
+  if receivedCount < totalChunks then
+    return false
+  end
+
+  local members = {}
+  local fieldSep = (self.allianceChat and self.allianceChat.fieldSep) or TALENT_RECORD_SEP
+  local memberSep = (self.allianceChat and self.allianceChat.rosterMemberSep) or "<#>"
+  for i = 1, totalChunks do
+    local chunkText = pending.chunks[i] or ""
+    if chunkText ~= "" then
+      local memberEntries = SplitByLiteralSep(chunkText, memberSep)
+      for entryIndex = 1, table.getn(memberEntries) do
+        local memberFields = SplitByLiteralSep(memberEntries[entryIndex] or "", fieldSep)
+        if Trim(memberFields[1] or "") ~= "" then
+          table.insert(members, {
+            name = DecodeTalentField(memberFields[1] or ""),
+            rank = DecodeTalentField(memberFields[2] or ""),
+            level = tonumber(memberFields[3]) or 0,
+            classTag = DecodeTalentField(memberFields[4] or "UNKNOWN"),
+            online = true,
+          })
+        end
+      end
+    end
+  end
+
+  self:SetAllianceRosterSnapshot(pending.guildName, pending.updatedAt, members, pending.sourcePlayer)
+  self.pendingAllianceRosterSyncs[lowerGuild] = nil
+  if LeafVE.UI and LeafVE.UI.RefreshAllianceWelcomePanel then
+    LeafVE.UI:RefreshAllianceWelcomePanel()
+  end
+  return true
+end
+
+function LeafVE:BuildLocalAllianceRosterSnapshot()
+  local guildName = self:GetPlayerGuildName("player")
+  if guildName == "" then
+    return nil
+  end
+
+  self:UpdateGuildRosterCache()
+
+  local members = {}
+  for _, info in pairs(self.guildRosterCache or {}) do
+    if type(info) == "table" and info.online then
+      table.insert(members, {
+        name = self:GetStoredDisplayPlayerName(info.name or ""),
+        rank = info.rank or "",
+        level = tonumber(info.level) or 0,
+        classTag = string.upper(Trim(info.class or "UNKNOWN")),
+        online = true,
+      })
+    end
+  end
+
+  table.sort(members, function(a, b)
+    local aRank = tostring(a.rank or "")
+    local bRank = tostring(b.rank or "")
+    if aRank == bRank then
+      return Lower(a.name or "") < Lower(b.name or "")
+    end
+    return aRank < bRank
+  end)
+
+  return {
+    guildName = guildName,
+    updatedAt = Now(),
+    members = members,
+    onlineCount = table.getn(members),
+  }
+end
+
+function LeafVE:CacheLocalAllianceRoster()
+  local snapshot = self:BuildLocalAllianceRosterSnapshot()
+  if not snapshot then
+    return nil
+  end
+  self:SetAllianceRosterSnapshot(snapshot.guildName, snapshot.updatedAt, snapshot.members, UnitName("player"))
+  return snapshot
+end
+
+function LeafVE:GetAllianceRosterSnapshot(guildName)
+  EnsureDB()
+
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return nil
+  end
+
+  local homeGuild = self:GetPlayerGuildName("player")
+  if homeGuild ~= "" and Lower(homeGuild) == Lower(trimmedGuild) then
+    return self:CacheLocalAllianceRoster()
+  end
+
+  return LeafVE_GlobalDB.allianceRosters and LeafVE_GlobalDB.allianceRosters[Lower(trimmedGuild)] or nil
+end
+
+function LeafVE:ResolveAllianceGuildForPlayer(playerName)
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return nil
+  end
+
+  local homeGuild = self:GetPlayerGuildName("player")
+  local guildInfo = self:GetGuildInfo(shortName)
+  if guildInfo and homeGuild ~= "" then
+    return homeGuild
+  end
+
+  for _, snapshot in pairs(LeafVE_GlobalDB.allianceRosters or {}) do
+    if type(snapshot) == "table" and type(snapshot.members) == "table" then
+      for i = 1, table.getn(snapshot.members) do
+        local member = snapshot.members[i]
+        if member and SamePlayerName(member.name, shortName) then
+          return snapshot.guildName
+        end
+      end
+    end
+  end
+
+  return nil
+end
+
+function LeafVE:RecordAllianceChatMessage(author, message, timestamp, eventToken)
+  EnsureDB()
+
+  local cleaned = self:StripAllianceChatDecorators(message)
+  cleaned = Trim(cleaned or "")
+  if cleaned == "" then
+    return false
+  end
+
+  local hiddenPrefix = self.allianceChat and self.allianceChat.hiddenPrefix or ""
+  local controlPrefix = self.allianceChat and self.allianceChat.controlPrefix or ""
+  if (hiddenPrefix ~= "" and string.sub(cleaned, 1, string.len(hiddenPrefix)) == hiddenPrefix)
+    or (controlPrefix ~= "" and string.sub(cleaned, 1, string.len(controlPrefix)) == controlPrefix) then
+    return false
+  end
+
+  if eventToken and eventToken ~= "" then
+    local tokenAt = tonumber(self.lastAllianceChatLogTokenAt) or 0
+    if self.lastAllianceChatLogToken == eventToken and (Now() - tokenAt) <= 2 then
+      return false
+    end
+    self.lastAllianceChatLogToken = eventToken
+    self.lastAllianceChatLogTokenAt = Now()
+  end
+
+  local record = {
+    author = self:GetStoredDisplayPlayerName(author),
+    guildName = self:ResolveAllianceGuildForPlayer(author) or "",
+    message = cleaned,
+    timestamp = tonumber(timestamp) or Now(),
+  }
+
+  table.insert(LeafVE_DB.allianceChatLog, record)
+  while table.getn(LeafVE_DB.allianceChatLog) > 120 do
+    table.remove(LeafVE_DB.allianceChatLog, 1)
+  end
+
+  if LeafVE.UI and LeafVE.UI.RefreshAllianceWelcomeChatHistory then
+    LeafVE.UI:RefreshAllianceWelcomeChatHistory(true)
+  elseif LeafVE.UI and LeafVE.UI.RefreshAllianceWelcomePanel then
+    LeafVE.UI:RefreshAllianceWelcomePanel()
+  end
+  return true
+end
+
+function LeafVE:GetAllianceChatLog()
+  EnsureDB()
+  return LeafVE_DB.allianceChatLog or {}
+end
+
+function LeafVE:SendAllianceControlMessage(prefix, fields)
+  local channelId = self:GetAllianceChannelId()
+  if channelId <= 0 or type(SendChatMessage) ~= "function" then
+    return false
+  end
+
+  local payload = tostring(prefix or "")
+  if type(fields) == "table" and table.getn(fields) > 0 then
+    payload = payload .. table.concat(fields, (self.allianceChat and self.allianceChat.fieldSep) or TALENT_RECORD_SEP)
+  end
+
+  local hiddenPrefix = (self.allianceChat and self.allianceChat.hiddenPrefix) or ""
+  SendChatMessage(hiddenPrefix .. payload, "CHANNEL", nil, channelId)
+  return true
+end
+
+function LeafVE:HandleAllianceControlMessage(author, message)
+  local cleaned = self:StripAllianceChatDecorators(message)
+  local hiddenPrefix = self.allianceChat and self.allianceChat.hiddenPrefix or ""
+  local controlPrefix = self.allianceChat and self.allianceChat.controlPrefix or ""
+  local fieldSep = (self.allianceChat and self.allianceChat.fieldSep) or TALENT_RECORD_SEP
+  local payload = nil
+  if hiddenPrefix ~= "" and string.sub(cleaned or "", 1, string.len(hiddenPrefix)) == hiddenPrefix then
+    payload = string.sub(cleaned, string.len(hiddenPrefix) + 1)
+  elseif controlPrefix ~= "" and string.sub(cleaned or "", 1, string.len(controlPrefix)) == controlPrefix then
+    payload = string.sub(cleaned, string.len(controlPrefix) + 1)
+  else
+    return false
+  end
+  if string.sub(payload, 1, 10) == "ROSTERREQ:" then
+    local fields = SplitByLiteralSep(string.sub(payload, 11), fieldSep)
+    local requestedGuild = DecodeTalentField(fields[1] or "")
+    local homeGuild = self:GetPlayerGuildName("player")
+    if requestedGuild ~= "" and homeGuild ~= "" and Lower(requestedGuild) == Lower(homeGuild) and self:IsAllianceGuildAuthorized(homeGuild) and self:IsAllianceRosterBroadcaster() then
+      self:ScheduleDeferred("alliance_roster_request_" .. Lower(homeGuild), 1.0, function()
+        LeafVE:MaybeBroadcastAllianceRosterSnapshot(true)
+      end)
+    end
+    return true
+  end
+
+  if string.sub(payload, 1, 11) == "ROSTERDATA:" then
+    local fields = SplitByLiteralSep(string.sub(payload, 12), fieldSep)
+    local payloadChunk = ""
+    if table.getn(fields) >= 5 then
+      payloadChunk = table.concat(fields, fieldSep, 5)
+    end
+    self:ReceiveAllianceRosterChunk(
+      author,
+      DecodeTalentField(fields[1] or ""),
+      tonumber(fields[2]) or 0,
+      tonumber(fields[3]) or 1,
+      tonumber(fields[4]) or 1,
+      payloadChunk
+    )
+    return true
+  end
+
+  if string.sub(payload, 1, 10) == "ACCESSREQ:" then
+    local fields = SplitByLiteralSep(string.sub(payload, 11), fieldSep)
+    local requestedGuild = DecodeTalentField(fields[1] or "")
+    local requestedBy = ShortName(DecodeTalentField(fields[2] or "")) or ShortName(author) or ""
+    local requestedAt = tonumber(fields[3]) or Now()
+    local isNewRequest = self:QueueAllianceAccessRequest(requestedGuild, requestedBy, requestedAt)
+    if requestedGuild ~= "" then
+      self:ShowAllianceAccessApproval(requestedGuild)
+    end
+    if isNewRequest and requestedGuild ~= "" then
+      Print("|cFFFFD700Alliance access request received:|r " .. tostring(requestedGuild) .. " |cFF888888(" .. tostring(requestedBy ~= "" and requestedBy or "Unknown") .. ")|r")
+    end
+    if LeafVE.UI and LeafVE.UI.RefreshAllianceWelcomePanel then
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    end
+    return true
+  end
+
+  if string.sub(payload, 1, 8) == "CFGSYNC:" then
+    local fields = SplitByLiteralSep(string.sub(payload, 9), fieldSep)
+    local updatedAt = tonumber(fields[1]) or Now()
+    local guilds = {}
+    for i = 2, table.getn(fields) do
+      table.insert(guilds, DecodeTalentField(fields[i] or ""))
+    end
+    self:SetAllianceAccessSnapshot(updatedAt, guilds)
+    if LeafVE.UI and LeafVE.UI.RefreshAllianceWelcomePanel then
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    end
+    return true
+  end
+
+  if string.sub(payload, 1, 7) == "CFGREQ:" then
+    if not self.isAllianceStandalone and self:IsAdminRank() then
+      self:BroadcastAllianceAccessSnapshot(true)
+    end
+    return true
+  end
+
+  return true
+end
+
+function LeafVE:BroadcastAllianceRosterSnapshot(force)
+  local snapshot = self:CacheLocalAllianceRoster()
+  if not snapshot then
+    return false
+  end
+
+  local now = Now()
+  self.lastAllianceRosterBroadcastAt = self.lastAllianceRosterBroadcastAt or 0
+  if not force and (now - self.lastAllianceRosterBroadcastAt) < 30 then
+    return false
+  end
+
+  local useGroupTransport = self:GetAllianceAccessAddonChatType() ~= nil
+  local channelId = self:GetAllianceChannelId()
+  if not useGroupTransport and channelId <= 0 then
+    return false
+  end
+
+  self.lastAllianceRosterBroadcastAt = now
+  local fieldSep = (self.allianceChat and self.allianceChat.fieldSep) or TALENT_RECORD_SEP
+  local memberSep = (self.allianceChat and self.allianceChat.rosterMemberSep) or "<#>"
+  local maxPayloadLength = math.max(1, 254 - string.len(tostring(self.prefix or "")))
+  local headerReserve = string.len("ROSTERDATA:")
+    + string.len(EncodeTalentField(snapshot.guildName or ""))
+    + string.len(tostring(snapshot.updatedAt or now))
+    + 20
+  local chunks = {}
+  local currentChunk = ""
+  local maxChunkPayload = math.max(60, maxPayloadLength - headerReserve)
+  for i = 1, table.getn(snapshot.members or {}) do
+    local member = snapshot.members[i]
+    local memberPayload = table.concat({
+      EncodeTalentField(member.name or ""),
+      EncodeTalentField(member.rank or ""),
+      tostring(member.level or 0),
+      EncodeTalentField(member.classTag or "UNKNOWN"),
+    }, fieldSep)
+    local combined = currentChunk
+    if combined ~= "" then
+      combined = combined .. memberSep .. memberPayload
+    else
+      combined = memberPayload
+    end
+    if currentChunk ~= "" and string.len(combined) > maxChunkPayload then
+      table.insert(chunks, currentChunk)
+      currentChunk = memberPayload
+    else
+      currentChunk = combined
+    end
+  end
+  if currentChunk ~= "" then
+    table.insert(chunks, currentChunk)
+  end
+  if table.getn(chunks) < 1 then
+    table.insert(chunks, "")
+  end
+
+  local totalChunks = table.getn(chunks)
+  for i = 1, totalChunks do
+    local fields = {
+      EncodeTalentField(snapshot.guildName or ""),
+      tostring(snapshot.updatedAt or now),
+      tostring(i),
+      tostring(totalChunks),
+      chunks[i] or "",
+    }
+    if useGroupTransport then
+      self:SendAllianceGroupAddonMessage("ROSTERDATA:" .. table.concat(fields, fieldSep))
+    else
+      self:SendAllianceControlMessage("ROSTERDATA:", fields)
+    end
+  end
+  return true
+end
+
+function LeafVE:RequestAllianceRosterSnapshot(guildName, force)
+  local trimmedGuild = Trim(guildName or "")
+  if trimmedGuild == "" then
+    return false
+  end
+
+  local lowerGuild = Lower(trimmedGuild)
+  local now = Now()
+  self.lastAllianceRosterRequestAt = self.lastAllianceRosterRequestAt or {}
+  if not force and (now - tonumber(self.lastAllianceRosterRequestAt[lowerGuild] or 0)) < 20 then
+    return false
+  end
+
+  self.lastAllianceRosterRequestAt[lowerGuild] = now
+  return self:SendAllianceControlMessage("ROSTERREQ:", {
+    EncodeTalentField(trimmedGuild),
+    tostring(now),
+  })
+end
+
+function LeafVE:PruneAllianceRosterBroadcasterPeers()
+  local now = Now()
+  self.allianceRosterBroadcasterPeers = self.allianceRosterBroadcasterPeers or {}
+  for lowerName, entry in pairs(self.allianceRosterBroadcasterPeers) do
+    local seenAt = type(entry) == "table" and tonumber(entry.seenAt or 0) or tonumber(entry) or 0
+    if seenAt <= 0 or (now - seenAt) > (LeafVE.allianceRosterBroadcasterTTL or 90) then
+      self.allianceRosterBroadcasterPeers[lowerName] = nil
+    end
+  end
+end
+
+function LeafVE:RecordAllianceRosterBroadcasterPeer(playerName, seenAt)
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return false
+  end
+
+  self.allianceRosterBroadcasterPeers = self.allianceRosterBroadcasterPeers or {}
+  self.allianceRosterBroadcasterPeers[Lower(shortName)] = {
+    name = shortName,
+    seenAt = tonumber(seenAt) or Now(),
+  }
+  self:PruneAllianceRosterBroadcasterPeers()
+  return true
+end
+
+function LeafVE:BroadcastAllianceRosterPresence(force)
+  if not InGuild() then
+    return false
+  end
+
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return false
+  end
+
+  local now = Now()
+  self.lastAllianceRosterPresenceAt = self.lastAllianceRosterPresenceAt or 0
+  if not force and (now - self.lastAllianceRosterPresenceAt) < 20 then
+    return false
+  end
+
+  self.lastAllianceRosterPresenceAt = now
+  self:RecordAllianceRosterBroadcasterPeer(me, now)
+  SendAddonMessage("LeafVE", "ALLYPRES:" .. tostring(now), "GUILD")
+  return true
+end
+
+function LeafVE:GetAllianceRosterBroadcasterName()
+  self:PruneAllianceRosterBroadcasterPeers()
+
+  local candidates = {}
+  local me = ShortName(UnitName("player"))
+  if me then
+    table.insert(candidates, me)
+  end
+
+  for _, entry in pairs(self.allianceRosterBroadcasterPeers or {}) do
+    local name = type(entry) == "table" and entry.name or nil
+    if name and (not me or Lower(name) ~= Lower(me)) then
+      table.insert(candidates, name)
+    end
+  end
+
+  if table.getn(candidates) == 0 then
+    return me
+  end
+
+  table.sort(candidates, function(a, b) return Lower(a or "") < Lower(b or "") end)
+  return candidates[1]
+end
+
+function LeafVE:IsAllianceRosterBroadcaster()
+  local me = ShortName(UnitName("player"))
+  local broadcaster = self:GetAllianceRosterBroadcasterName()
+  if not me or not broadcaster then
+    return false
+  end
+  return Lower(me) == Lower(broadcaster)
+end
+
+function LeafVE:BuildAllianceRosterSnapshotHash(snapshot)
+  if type(snapshot) ~= "table" then
+    return ""
+  end
+
+  local parts = {
+    tostring(snapshot.guildName or ""),
+    tostring(snapshot.onlineCount or 0),
+  }
+
+  for i = 1, table.getn(snapshot.members or {}) do
+    local member = snapshot.members[i]
+    table.insert(parts, table.concat({
+      tostring(member.name or ""),
+      tostring(member.rank or ""),
+      tostring(member.level or 0),
+      tostring(member.classTag or ""),
+    }, ":"))
+  end
+
+  return table.concat(parts, "|")
+end
+
+function LeafVE:MaybeBroadcastAllianceRosterSnapshot(force)
+  local homeGuild = self:GetPlayerGuildName("player")
+  if homeGuild == "" or not self:IsAllianceGuildAuthorized(homeGuild) then
+    return false
+  end
+
+  if not force and not self:IsAllianceRosterBroadcaster() then
+    return false
+  end
+
+  local snapshot = self:CacheLocalAllianceRoster()
+  if not snapshot then
+    return false
+  end
+
+  local snapshotHash = self:BuildAllianceRosterSnapshotHash(snapshot)
+  if not force and snapshotHash ~= "" and snapshotHash == (self.lastAllianceRosterBroadcastHash or "") then
+    return false
+  end
+
+  local broadcasted = self:BroadcastAllianceRosterSnapshot(force)
+  if broadcasted then
+    self.lastAllianceRosterBroadcastHash = snapshotHash
+  end
+  return broadcasted
+end
+
+function LeafVE:SendAllianceChatMessage(text, retryCount)
+  local outgoing = Trim(text or "")
+  if outgoing == "" then
+    return false, "Type a message first."
+  end
+
+  retryCount = tonumber(retryCount) or 0
+  local channelId = self:GetAllianceChannelId()
+  if channelId <= 0 then
+    self:JoinAllianceChannel(false, true)
+    if retryCount < 1 then
+      self:ScheduleDeferred("alliance_chat_send_retry", 1.0, function()
+        LeafVE:SendAllianceChatMessage(outgoing, retryCount + 1)
+      end)
+    end
+    return false, "Joining Leaf Alliance..."
+  end
+
+  SendChatMessage(outgoing, "CHANNEL", nil, channelId)
+  return true
 end
 
 function LeafVE:GetAllianceChannelName()
@@ -1761,6 +4093,26 @@ function LeafVE:BuildAllianceFormattedLine(author, message)
   return LeafVE.allianceChat.prefixColor .. "[" .. self:GetAllianceDisplayLabel() .. "]|r [" .. displayAuthor .. "]: " .. LeafVE.allianceChat.messageColor .. displayMessage .. "|r"
 end
 
+function LeafVE:BuildAlliancePanelLine(author, message, timestamp, guildName)
+  local displayAuthor = Trim(author or "")
+  local displayMessage = Trim(self:StripAllianceChatDecorators(message) or "")
+  local displayGuild = Trim(guildName or "")
+  local timeText = date("%H:%M", tonumber(timestamp) or Now())
+
+  if displayAuthor == "" then
+    displayAuthor = "Unknown"
+  end
+  if displayGuild == "" then
+    displayGuild = self:ResolveAllianceGuildForPlayer(displayAuthor) or ""
+  end
+  if displayGuild == "" then
+    displayGuild = "Unknown Guild"
+  end
+
+  return "|cFF888888[" .. timeText .. "]|r: |cFFFFD700" .. displayAuthor .. "|r: |cFF88CC88" .. displayGuild .. "|r: "
+    .. LeafVE.allianceChat.messageColor .. displayMessage .. "|r"
+end
+
 function LeafVE:ShouldSuppressAllianceSystemMessage(message)
   local text = Lower(Trim(message or ""))
   local desiredName = Lower(self:GetAllianceChannelName())
@@ -1774,6 +4126,7 @@ function LeafVE:ShouldSuppressAllianceSystemMessage(message)
 
   return string.find(text, "owner changed to", 1, true) ~= nil
     or string.find(text, "changed owner to", 1, true) ~= nil
+    or string.find(text, "channel owner", 1, true) ~= nil
     or string.find(text, "joined channel", 1, true) ~= nil
     or string.find(text, "left channel", 1, true) ~= nil
 end
@@ -1782,6 +4135,10 @@ function LeafVE:ShouldSuppressAllianceRenderedText(text)
   local rendered = tostring(text or "")
   local hiddenPrefix = LeafVE.allianceChat and LeafVE.allianceChat.hiddenPrefix or ""
   if hiddenPrefix ~= "" and string.find(rendered, hiddenPrefix, 1, true) ~= nil then
+    return true
+  end
+  local controlPrefix = LeafVE.allianceChat and LeafVE.allianceChat.controlPrefix or ""
+  if controlPrefix ~= "" and string.find(rendered, controlPrefix, 1, true) ~= nil then
     return true
   end
   return self:ShouldSuppressAllianceSystemMessage(rendered)
@@ -1830,6 +4187,146 @@ function LeafVE:TryFormatAllianceRenderedText(text)
   return self:BuildAllianceFormattedLine(author, message)
 end
 
+function LeafVE:TryFormatGuildTitleRenderedText(text)
+  local rendered = tostring(text or "")
+  if rendered == "" then
+    return nil
+  end
+
+  local renderedPlain = self:StripAllianceRenderedMarkup(rendered)
+  local channelTag, author, messagePlain = string.match(renderedPlain, "^%[([^%]]+)%]%s*%[([^%]]+)%]:%s*(.+)$")
+  if not channelTag then
+    channelTag, author, messagePlain = string.match(renderedPlain, "^%[([^%]]+)%]%s*([^:]+):%s*(.+)$")
+  end
+  if not channelTag or not author or not messagePlain then
+    return nil
+  end
+  if Lower(channelTag) ~= "guild" then
+    return nil
+  end
+
+  local shortAuthor = ShortName(author)
+  if not shortAuthor then
+    return nil
+  end
+
+  local titleName = string.match(messagePlain, "^([^%]]+)%]%s+")
+  if not titleName or titleName == "" then
+    return nil
+  end
+
+  local plainPrefix = titleName .. "] "
+  if string.sub(messagePlain, 1, string.len(plainPrefix)) ~= plainPrefix then
+    return nil
+  end
+
+  local titleDef = nil
+  for i = 1, table.getn(self.titleDefinitions or {}) do
+    local entry = self.titleDefinitions[i]
+    if entry and entry.title == titleName then
+      titleDef = entry
+      break
+    end
+  end
+  if not titleDef then
+    return nil
+  end
+  local sourceBadge = nil
+  for i = 1, table.getn(BADGES) do
+    local badge = BADGES[i]
+    if badge and badge.id == titleDef.badgeId then
+      sourceBadge = badge
+      break
+    end
+  end
+  local tr, tg, tb = GetBadgeQualityColor((sourceBadge and sourceBadge.quality) or BADGE_QUALITY.EPIC)
+  local coloredPrefix = "|cFF" .. RGBToHex(tr, tg, tb) .. tostring(titleDef.title or "") .. "]|r"
+
+  local separatorStart, separatorEnd = string.find(rendered, ": ", 1, true)
+  if not separatorEnd then
+    return nil
+  end
+
+  local messageRendered = string.sub(rendered, separatorEnd + 1)
+  if string.sub(messageRendered, 1, string.len(plainPrefix)) ~= plainPrefix then
+    return nil
+  end
+
+  return string.sub(rendered, 1, separatorEnd) .. coloredPrefix .. " " .. string.sub(messageRendered, string.len(plainPrefix) + 1)
+end
+
+function LeafVE:TryFormatGuildBadgeAnnouncementRenderedText(text)
+  local rendered = tostring(text or "")
+  if rendered == "" then
+    return nil
+  end
+
+  local renderedPlain = self:StripAllianceRenderedMarkup(rendered)
+  local channelTag, author, messagePlain = string.match(renderedPlain, "^%[([^%]]+)%]%s*%[([^%]]+)%]:%s*(.+)$")
+  if not channelTag then
+    channelTag, author, messagePlain = string.match(renderedPlain, "^%[([^%]]+)%]%s*([^:]+):%s*(.+)$")
+  end
+  if not channelTag or not author or not messagePlain then
+    return nil
+  end
+  if Lower(channelTag) ~= "guild" then
+    return nil
+  end
+
+  local badgeName = string.match(messagePlain, "^earned %[(.-)%]")
+  if not badgeName or badgeName == "" then
+    return nil
+  end
+
+  local badge
+  for i = 1, table.getn(BADGES) do
+    if BADGES[i] and BADGES[i].name == badgeName then
+      badge = BADGES[i]
+      break
+    end
+  end
+  if not badge then
+    return nil
+  end
+
+  local qr, qg, qb = GetBadgeQualityColor(badge.quality or BADGE_QUALITY.COMMON)
+  local linkedBadgeName = "|Hleafve_badge:" .. tostring(badge.id or "") .. "|h|cFF" .. RGBToHex(qr, qg, qb) .. "[" .. badgeName .. "]|r|h"
+
+  local separatorStart, separatorEnd = string.find(rendered, ": ", 1, true)
+  if not separatorEnd then
+    return nil
+  end
+
+  local prefix = string.sub(rendered, 1, separatorEnd)
+  local suffix = string.sub(rendered, separatorEnd + 1)
+  local plainBadgeText = "[" .. badgeName .. "]"
+  local badgeStart, badgeEnd = string.find(suffix, plainBadgeText, 1, true)
+  if not badgeStart or not badgeEnd then
+    return nil
+  end
+
+  local formatted = prefix .. string.sub(suffix, 1, badgeStart - 1) .. linkedBadgeName .. string.sub(suffix, badgeEnd + 1)
+
+  local unlockedTitle = self:GetTitleDefinition(badge.id)
+  if unlockedTitle and unlockedTitle.title and unlockedTitle.title ~= "" then
+    local bracketedTitle = "[" .. tostring(unlockedTitle.title) .. "]"
+    local titleStart, titleEnd = string.find(formatted, bracketedTitle, 1, true)
+    if titleStart and titleEnd then
+      local coloredTitle = "|cFF" .. RGBToHex(qr, qg, qb) .. bracketedTitle .. "|r"
+      formatted = string.sub(formatted, 1, titleStart - 1) .. coloredTitle .. string.sub(formatted, titleEnd + 1)
+    else
+      local plainTitleText = tostring(unlockedTitle.title) .. "]"
+      local fallbackStart, fallbackEnd = string.find(formatted, plainTitleText, 1, true)
+      if fallbackStart and fallbackEnd then
+        local coloredFallback = "|cFF" .. RGBToHex(qr, qg, qb) .. tostring(unlockedTitle.title) .. "]|r"
+        formatted = string.sub(formatted, 1, fallbackStart - 1) .. coloredFallback .. string.sub(formatted, fallbackEnd + 1)
+      end
+    end
+  end
+
+  return formatted
+end
+
 function LeafVE:WrapAllianceChatFrame(frame)
   if not frame or type(frame.AddMessage) ~= "function" or frame.leafVEAllianceWrapped then
     return false
@@ -1844,6 +4341,18 @@ function LeafVE:WrapAllianceChatFrame(frame)
       local formatted = LeafVE:TryFormatAllianceRenderedText(text)
       if formatted then
         return selfFrame.leafVEAllianceOriginalAddMessage(selfFrame, formatted, r, g, b, chatTypeID, holdTime, accessID, lineID)
+      end
+    end
+    if LeafVE and LeafVE.TryFormatGuildTitleRenderedText then
+      local titleFormatted = LeafVE:TryFormatGuildTitleRenderedText(text)
+      if titleFormatted then
+        return selfFrame.leafVEAllianceOriginalAddMessage(selfFrame, titleFormatted, r, g, b, chatTypeID, holdTime, accessID, lineID)
+      end
+    end
+    if LeafVE and LeafVE.TryFormatGuildBadgeAnnouncementRenderedText then
+      local badgeFormatted = LeafVE:TryFormatGuildBadgeAnnouncementRenderedText(text)
+      if badgeFormatted then
+        return selfFrame.leafVEAllianceOriginalAddMessage(selfFrame, badgeFormatted, r, g, b, chatTypeID, holdTime, accessID, lineID)
       end
     end
     return selfFrame.leafVEAllianceOriginalAddMessage(selfFrame, text, r, g, b, chatTypeID, holdTime, accessID, lineID)
@@ -1880,13 +4389,18 @@ function LeafVE:HandleAllianceChatFrameMessage(chatFrame, eventName, message, au
   end
 
   if eventName == "CHAT_MSG_CHANNEL" and self:IsAllianceMessageChannel(channelString, channelName, channelNumber) then
-    local formatted = self:BuildAllianceFormattedLine(author, message)
-    if chatFrame and chatFrame.AddMessage then
-      chatFrame:AddMessage(formatted)
-    elseif DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-      DEFAULT_CHAT_FRAME:AddMessage(formatted)
+    if self:HandleAllianceControlMessage(author, message) then
+      return true
     end
-    return true
+    local cleaned = Trim(self:StripAllianceChatDecorators(message) or "")
+    local eventToken = table.concat({
+      tostring(channelNumber or channelName or ""),
+      tostring(counter or ""),
+      Lower(ShortName(author) or author or ""),
+      cleaned,
+    }, "|")
+    self:RecordAllianceChatMessage(author, message, Now(), eventToken)
+    return false
   end
 
   return false
@@ -1991,10 +4505,44 @@ function LeafVE:InstallAllianceSendHook()
   self.originalAllianceSendChatMessage = SendChatMessage
   self.wrappedAllianceSendChatMessage = function(msg, chatType, language, channel)
     local outgoing = msg
-    if LeafVE and chatType == "CHANNEL" and type(msg) == "string" and msg ~= "" and string.sub(msg, 1, 1) ~= "/" then
-      if LeafVE:IsAllianceOutgoingChannel(channel) then
-        outgoing = LeafVE:BuildAlliancePlainOutgoingPrefix() .. LeafVE:StripAllianceChatDecorators(msg)
+    local isAllianceChannelSend = chatType == "CHANNEL" and LeafVE:IsAllianceOutgoingChannel(channel)
+    if LeafVE and type(msg) == "string" and msg ~= "" and string.sub(msg, 1, 1) ~= "/" then
+      local suppressDecorators = (LeafVE.suppressOutgoingChatDecorators or 0) > 0
+      if not suppressDecorators then
+        local me = ShortName(UnitName("player"))
+        if me and LeafVE:IsChatTitleEligibleType(chatType) then
+          local titlePrefix = LeafVE:GetChatTitlePrefixForPlayer(me)
+          if titlePrefix ~= "" then
+            local rawMessage = outgoing
+            if isAllianceChannelSend then
+              rawMessage = LeafVE:StripAllianceChatDecorators(rawMessage)
+            end
+            if string.sub(rawMessage, 1, string.len(titlePrefix)) ~= titlePrefix then
+              outgoing = titlePrefix .. rawMessage
+            else
+              outgoing = rawMessage
+            end
+          end
+        end
       end
+      local hiddenPrefix = LeafVE.allianceChat and LeafVE.allianceChat.hiddenPrefix or ""
+      local controlPrefix = LeafVE.allianceChat and LeafVE.allianceChat.controlPrefix or ""
+      local isAllianceControlPayload = isAllianceChannelSend
+        and type(outgoing) == "string"
+        and (
+          (hiddenPrefix ~= "" and string.sub(outgoing, 1, string.len(hiddenPrefix)) == hiddenPrefix)
+          or
+          (controlPrefix ~= "" and string.sub(outgoing, 1, string.len(controlPrefix)) == controlPrefix)
+        )
+
+      if isAllianceChannelSend and not isAllianceControlPayload then
+        outgoing = LeafVE:BuildAlliancePlainOutgoingPrefix() .. LeafVE:StripAllianceChatDecorators(outgoing)
+      end
+    end
+    if isAllianceChannelSend then
+      LeafVE.allianceChatStickyEnabled = true
+    elseif chatType and chatType ~= "" and chatType ~= "AFK" and chatType ~= "DND" then
+      LeafVE.allianceChatStickyEnabled = false
     end
     return LeafVE.originalAllianceSendChatMessage(outgoing, chatType, language, channel)
   end
@@ -2002,9 +4550,24 @@ function LeafVE:InstallAllianceSendHook()
   SendChatMessage = self.wrappedAllianceSendChatMessage
 end
 
+function LeafVE:SendSystemChatMessage(message, chatType, language, channel)
+  if type(SendChatMessage) ~= "function" then
+    return
+  end
+
+  self.suppressOutgoingChatDecorators = (self.suppressOutgoingChatDecorators or 0) + 1
+  local ok, err = pcall(SendChatMessage, message, chatType, language, channel)
+  self.suppressOutgoingChatDecorators = math.max(0, (self.suppressOutgoingChatDecorators or 1) - 1)
+  if not ok then
+    Print("Chat send failed: " .. tostring(err))
+  end
+end
+
 function LeafVE:InstallAllianceChatSupport()
+  self:InstallAllianceSendHook()
   self:InstallAllianceRenderedMessageSuppression()
   self:InstallAllianceChatHandler()
+  self:InstallAllianceStickyChatHook()
 end
 
 function LeafVE:ApplyAllianceChannelColor(channelId)
@@ -2035,25 +4598,115 @@ end
 function LeafVE:EnsureAllianceChannelVisible(channelName)
   channelName = channelName or self:GetAllianceChannelName()
   if type(ChatFrame_AddChannel) == "function" then
+    local totalFrames = tonumber(NUM_CHAT_WINDOWS) or 7
+    for i = 1, totalFrames do
+      local frame = _G["ChatFrame" .. tostring(i)]
+      if frame then
+        pcall(ChatFrame_AddChannel, frame, channelName)
+      end
+    end
     if DEFAULT_CHAT_FRAME then
       pcall(ChatFrame_AddChannel, DEFAULT_CHAT_FRAME, channelName)
     end
-    if SELECTED_CHAT_FRAME and SELECTED_CHAT_FRAME ~= DEFAULT_CHAT_FRAME then
+    if SELECTED_CHAT_FRAME then
       pcall(ChatFrame_AddChannel, SELECTED_CHAT_FRAME, channelName)
     end
   end
 end
 
+function LeafVE:ApplyAllianceStickyToEditBox(editBox)
+  local channelId = self:GetAllianceChannelId()
+  if channelId <= 0 or not editBox then
+    return false
+  end
+  if ChatTypeInfo and ChatTypeInfo["CHANNEL"] then
+    ChatTypeInfo["CHANNEL"].sticky = 1
+  end
+  editBox.stickyType = "CHANNEL"
+  editBox.chatType = "CHANNEL"
+  editBox.channelTarget = channelId
+  if type(editBox.SetAttribute) == "function" then
+    pcall(editBox.SetAttribute, editBox, "stickyType", "CHANNEL")
+    pcall(editBox.SetAttribute, editBox, "chatType", "CHANNEL")
+    pcall(editBox.SetAttribute, editBox, "channelTarget", channelId)
+  end
+  if type(ChatEdit_UpdateHeader) == "function" then
+    pcall(ChatEdit_UpdateHeader, editBox)
+  end
+  return true
+end
+
+function LeafVE:InstallAllianceStickyChatHook()
+  if self.allianceStickyChatHookInstalled then
+    return
+  end
+
+  if type(ChatFrame_OpenChat) == "function" then
+    self.originalAllianceChatFrameOpenChat = self.originalAllianceChatFrameOpenChat or ChatFrame_OpenChat
+    if ChatFrame_OpenChat ~= self.wrappedAllianceChatFrameOpenChat then
+      self.wrappedAllianceChatFrameOpenChat = function(text, chatFrame)
+        local result = { LeafVE.originalAllianceChatFrameOpenChat(text, chatFrame) }
+        if LeafVE and LeafVE.allianceChatStickyEnabled and (text == nil or text == "") then
+          local targetFrame = chatFrame or SELECTED_CHAT_FRAME or DEFAULT_CHAT_FRAME
+          local editBox = targetFrame and targetFrame.editBox or nil
+          if editBox then
+            LeafVE:ApplyAllianceStickyToEditBox(editBox)
+          end
+        end
+        return unpack(result)
+      end
+      ChatFrame_OpenChat = self.wrappedAllianceChatFrameOpenChat
+    end
+  end
+
+  if type(ChatEdit_ActivateChat) == "function" then
+    self.originalAllianceChatEditActivate = self.originalAllianceChatEditActivate or ChatEdit_ActivateChat
+    if ChatEdit_ActivateChat ~= self.wrappedAllianceChatEditActivate then
+      self.wrappedAllianceChatEditActivate = function(editBox)
+        local result = { LeafVE.originalAllianceChatEditActivate(editBox) }
+        if LeafVE and LeafVE.allianceChatStickyEnabled and editBox then
+          LeafVE:ApplyAllianceStickyToEditBox(editBox)
+        end
+        return unpack(result)
+      end
+      ChatEdit_ActivateChat = self.wrappedAllianceChatEditActivate
+    end
+  end
+
+  self.allianceStickyChatHookInstalled = true
+end
+
 function LeafVE:OpenAllianceChatInput()
+  self:InstallAllianceStickyChatHook()
   local channelId = self:GetAllianceChannelId()
   if channelId <= 0 then
     return false
   end
-  if type(ChatFrame_OpenChat) == "function" then
-    ChatFrame_OpenChat("/" .. tostring(channelId) .. " ")
-    return true
+  if ChatTypeInfo and ChatTypeInfo["CHANNEL"] then
+    ChatTypeInfo["CHANNEL"].sticky = 1
   end
-  return false
+  local targetFrame = DEFAULT_CHAT_FRAME
+  if SELECTED_CHAT_FRAME and SELECTED_CHAT_FRAME.editBox then
+    targetFrame = SELECTED_CHAT_FRAME
+  end
+  local editBox = targetFrame and targetFrame.editBox or nil
+  if not editBox then
+    return false
+  end
+  if type(ChatFrame_OpenChat) == "function" then
+    ChatFrame_OpenChat("", targetFrame)
+  elseif type(ChatEdit_ActivateChat) == "function" then
+    ChatEdit_ActivateChat(editBox)
+  end
+  self.allianceChatStickyEnabled = true
+  self:ApplyAllianceStickyToEditBox(editBox)
+  if type(editBox.SetText) == "function" then
+    editBox:SetText("")
+  end
+  if type(editBox.SetFocus) == "function" then
+    editBox:SetFocus()
+  end
+  return true
 end
 
 function LeafVE:FinalizeAllianceChannelJoin(channelId, announce, openInput)
@@ -2069,7 +4722,7 @@ function LeafVE:FinalizeAllianceChannelJoin(channelId, announce, openInput)
   self:InstallAllianceChatSupport()
 
   if announce then
-    Print("Joined alliance chat: [" .. self:GetAllianceChannelName() .. "]")
+    Print("Joined " .. self:GetAllianceDisplayLabel() .. ": [" .. self:GetAllianceChannelName() .. "]")
   end
 
   if openInput then
@@ -2099,7 +4752,7 @@ function LeafVE:JoinAllianceChannel(openInput, announce)
   self.pendingAllianceAnnounceJoin = announce and true or false
 
   if announce then
-    Print("Joining alliance chat [" .. channelName .. "]...")
+    Print("Joining " .. self:GetAllianceDisplayLabel() .. " [" .. channelName .. "]...")
   end
 
   self:ScheduleDeferred("leafve_alliance_join_retry", 0.7, function()
@@ -2112,7 +4765,7 @@ function LeafVE:JoinAllianceChannel(openInput, announce)
     if retryChannelId > 0 then
       LeafVE:FinalizeAllianceChannelJoin(retryChannelId, shouldAnnounce, shouldOpenInput)
     elseif shouldAnnounce then
-      Print("Unable to join alliance chat [" .. channelName .. "].")
+      Print("Unable to join " .. LeafVE:GetAllianceDisplayLabel() .. " [" .. channelName .. "].")
     end
   end)
 
@@ -2361,6 +5014,20 @@ local function GetBestGuildieGroupHours(playerName)
   return localHours
 end
 
+local function GetBestGuildieHonorableKills(playerName)
+  local name = ShortName(playerName)
+  if not name then return 0 end
+
+  local localKills = (LeafVE_DB.guildieHonorableKills and LeafVE_DB.guildieHonorableKills[name]) or 0
+  local cachedKills = GetCachedProgressNumber(name, "guildieHonorableKills")
+  if cachedKills > localKills then
+    if not LeafVE_DB.guildieHonorableKills then LeafVE_DB.guildieHonorableKills = {} end
+    LeafVE_DB.guildieHonorableKills[name] = cachedKills
+    return cachedKills
+  end
+  return localKills
+end
+
 local function GetBestAttendanceCount(playerName)
   local name = ShortName(playerName)
   if not name then return 0 end
@@ -2525,6 +5192,11 @@ function LeafVE:CacheBadgeProgress(playerName)
     cache.guildieGroupHours = guildieHours
   end
 
+  local guildieHonorableKills = (LeafVE_DB.guildieHonorableKills and LeafVE_DB.guildieHonorableKills[name]) or 0
+  if guildieHonorableKills > (cache.guildieHonorableKills or 0) then
+    cache.guildieHonorableKills = guildieHonorableKills
+  end
+
   local attendanceCount = table.getn((LeafVE_DB.attendance and LeafVE_DB.attendance[name]) or {})
   if attendanceCount > (cache.attendance or 0) then
     cache.attendance = attendanceCount
@@ -2684,25 +5356,369 @@ local function HadBadgeInArchivedSeason(playerName, badgeId)
   return false
 end
 
+local function GetBadgeDefinition(badgeId)
+  if not badgeId or badgeId == "" then return nil end
+  for i = 1, table.getn(BADGES) do
+    if BADGES[i].id == badgeId then
+      return BADGES[i]
+    end
+  end
+  return nil
+end
+
+function LeafVE:GetTitleDefinition(titleId)
+  if not titleId or titleId == "" then
+    return nil
+  end
+  for i = 1, table.getn(self.titleDefinitions or {}) do
+    local titleDef = self.titleDefinitions[i]
+    if titleDef and titleDef.id == titleId then
+      return titleDef
+    end
+  end
+  return nil
+end
+
+LeafVE.chatTitleEligibleTypes = {
+  GUILD = true,
+}
+
+function LeafVE:SetTitleCacheRecord(playerName, titleId, updatedAt)
+  EnsureDB()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return
+  end
+  if not LeafVE_GlobalDB.titleCache then
+    LeafVE_GlobalDB.titleCache = {}
+  end
+  LeafVE_GlobalDB.titleCache[Lower(shortName)] = {
+    player = shortName,
+    titleId = titleId or "",
+    updatedAt = tonumber(updatedAt) or Now(),
+  }
+end
+
+function LeafVE:GetUnlockedTitlesForPlayer(playerName)
+  EnsureDB()
+  local shortName = ShortName(playerName)
+  local unlocked = {}
+  if not shortName then
+    return unlocked
+  end
+
+  local badgeMap = LeafVE_DB.badges[shortName] or {}
+  for i = 1, table.getn(self.titleDefinitions or {}) do
+    local titleDef = self.titleDefinitions[i]
+    if badgeMap[titleDef.badgeId] then
+      table.insert(unlocked, titleDef)
+    end
+  end
+  return unlocked
+end
+
+function LeafVE:IsTitleUnlockedForPlayer(playerName, titleId)
+  EnsureDB()
+  local shortName = ShortName(playerName)
+  local titleDef = self:GetTitleDefinition(titleId)
+  if not shortName or not titleDef then
+    return false
+  end
+
+  local badgeMap = LeafVE_DB.badges[shortName] or {}
+  return badgeMap[titleDef.badgeId] ~= nil
+end
+
+function LeafVE:GetEquippedTitleIdForPlayer(playerName)
+  EnsureDB()
+  local shortName = ShortName(playerName)
+  if not shortName then
+    return nil
+  end
+
+  local me = ShortName(UnitName("player"))
+  if me and Lower(me) == Lower(shortName) then
+    local selfTitleId = LeafVE_DB.equippedTitles[shortName]
+    if selfTitleId and selfTitleId ~= "" then
+      if self:IsTitleUnlockedForPlayer(shortName, selfTitleId) then
+        return selfTitleId
+      end
+      LeafVE_DB.equippedTitles[shortName] = nil
+      self:SetTitleCacheRecord(shortName, nil, Now())
+    end
+  end
+
+  local titleCache = LeafVE_GlobalDB.titleCache and LeafVE_GlobalDB.titleCache[Lower(shortName)]
+  local cachedId = titleCache and titleCache.titleId or nil
+  if cachedId and cachedId ~= "" and self:GetTitleDefinition(cachedId) then
+    return cachedId
+  end
+
+  local fallbackId = LeafVE_DB.equippedTitles and LeafVE_DB.equippedTitles[shortName]
+  if fallbackId and fallbackId ~= "" and self:GetTitleDefinition(fallbackId) then
+    return fallbackId
+  end
+  return nil
+end
+
+function LeafVE:GetEquippedTitleDefinitionForPlayer(playerName)
+  local titleId = self:GetEquippedTitleIdForPlayer(playerName)
+  return self:GetTitleDefinition(titleId)
+end
+
+function LeafVE:GetEquippedTitleNameForPlayer(playerName)
+  local titleDef = self:GetEquippedTitleDefinitionForPlayer(playerName)
+  if titleDef then
+    return titleDef.title
+  end
+  return nil
+end
+
+function LeafVE:BuildPlayerTitleMarkup(playerName)
+  local titleDef = self:GetEquippedTitleDefinitionForPlayer(playerName)
+  if not titleDef then
+    return nil
+  end
+
+  local sourceBadge = GetBadgeDefinition(titleDef.badgeId)
+  local tr, tg, tb = GetBadgeQualityColor((sourceBadge and sourceBadge.quality) or BADGE_QUALITY.EPIC)
+  return "|cFF" .. RGBToHex(tr, tg, tb) .. "[" .. tostring(titleDef.title or "") .. "]|r"
+end
+
+function LeafVE:GetStoredDisplayPlayerName(playerName)
+  local shortName = ShortName(playerName) or tostring(playerName or "")
+  if shortName == "" then
+    return ""
+  end
+
+  local guildInfo = self:GetGuildInfo(shortName)
+  if guildInfo and guildInfo.name and guildInfo.name ~= "" then
+    return guildInfo.name
+  end
+
+  local persistent = LeafVE_DB and LeafVE_DB.persistentRoster and LeafVE_DB.persistentRoster[Lower(shortName)]
+  if persistent and persistent.name and persistent.name ~= "" then
+    return persistent.name
+  end
+
+  return shortName
+end
+
+function LeafVE:BuildPlayerCardNameMarkup(playerName, classTag)
+  local shortName = self:GetStoredDisplayPlayerName(playerName)
+  if shortName == "" then
+    return ""
+  end
+
+  local classToken = string.upper(tostring(classTag or self:GetClassTagForPlayer(shortName) or "UNKNOWN"))
+  local classColor = CLASS_COLORS[classToken] or {1, 1, 1}
+  local nameMarkup = "|cFF" .. RGBToHex(classColor[1], classColor[2], classColor[3]) .. shortName .. "|r"
+  local titleDef = self:GetEquippedTitleDefinitionForPlayer(shortName)
+  if not titleDef then
+    return nameMarkup
+  end
+
+  local sourceBadge = GetBadgeDefinition(titleDef.badgeId)
+  local tr, tg, tb = GetBadgeQualityColor((sourceBadge and sourceBadge.quality) or BADGE_QUALITY.EPIC)
+  return nameMarkup .. " |cFF" .. RGBToHex(tr, tg, tb) .. tostring(titleDef.title or "") .. "|r"
+end
+
+function LeafVE:BuildStyledPlayerName(playerName, classTag)
+  local shortName = self:GetStoredDisplayPlayerName(playerName)
+  if shortName == "" then
+    return ""
+  end
+
+  local classToken = string.upper(tostring(classTag or self:GetClassTagForPlayer(shortName) or "UNKNOWN"))
+  local classColor = CLASS_COLORS[classToken] or {1, 1, 1}
+  local nameMarkup = "|cFF" .. RGBToHex(classColor[1], classColor[2], classColor[3]) .. shortName .. "|r"
+  local titleMarkup = self:BuildPlayerTitleMarkup(shortName)
+  if titleMarkup then
+    return titleMarkup .. " " .. nameMarkup
+  end
+  return nameMarkup
+end
+
+function LeafVE:GetChatTitlePrefixForPlayer(playerName)
+  local titleName = self:GetEquippedTitleNameForPlayer(playerName)
+  if titleName and titleName ~= "" then
+    return titleName .. "] "
+  end
+  return ""
+end
+
+function LeafVE:IsChatTitleEligibleType(chatType)
+  return self.chatTitleEligibleTypes[string.upper(tostring(chatType or ""))] == true
+end
+
+function LeafVE:SetEquippedTitleForSelf(titleId)
+  EnsureDB()
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return false, "Could not determine your character name."
+  end
+
+  if titleId == "" then
+    titleId = nil
+  end
+  if titleId and not self:GetTitleDefinition(titleId) then
+    return false, "That title does not exist."
+  end
+  if titleId and not self:IsTitleUnlockedForPlayer(me, titleId) then
+    return false, "You have not unlocked that title yet."
+  end
+
+  LeafVE_DB.equippedTitles[me] = titleId or nil
+  self:SetTitleCacheRecord(me, titleId, Now())
+  self:BroadcastMyEquippedTitle(true)
+  if self.UI and self.UI.Refresh then
+    self.UI:Refresh()
+  end
+  return true
+end
+
+function LeafVE:BroadcastMyEquippedTitle(force)
+  EnsureDB()
+  local me = ShortName(UnitName("player"))
+  if not me or not InGuild() then
+    return
+  end
+
+  self.lastTitleBroadcastAt = self.lastTitleBroadcastAt or 0
+  local now = Now()
+  if not force and (now - self.lastTitleBroadcastAt) < 15 then
+    return
+  end
+
+  local titleId = LeafVE_DB.equippedTitles[me]
+  if titleId and not self:IsTitleUnlockedForPlayer(me, titleId) then
+    titleId = nil
+    LeafVE_DB.equippedTitles[me] = nil
+  end
+
+  self.lastTitleBroadcastAt = now
+  self:SetTitleCacheRecord(me, titleId, now)
+  SendAddonMessage("LeafVE", "TITLEEQ:" .. tostring(now) .. SEP .. EncodeTalentField(titleId or ""), "GUILD")
+end
+
+function LeafVE:RequestPlayerTitle(playerName, force)
+  local shortName = ShortName(playerName)
+  local me = ShortName(UnitName("player"))
+  if not shortName or not me or Lower(shortName) == Lower(me) or not InGuild() then
+    return
+  end
+
+  self.lastTitleRequestAt = self.lastTitleRequestAt or {}
+  local key = Lower(shortName)
+  local now = Now()
+  if not force and self.lastTitleRequestAt[key] and (now - self.lastTitleRequestAt[key]) < 15 then
+    return
+  end
+
+  self.lastTitleRequestAt[key] = now
+  SendAddonMessage("LeafVE", "TITLEREQ:" .. shortName, "GUILD")
+end
+
 local function ShouldAnnounceBadgeInGuild(playerName, badgeId)
   if not InGuild() then return false end
   if not badgeId or badgeId == "" then return false end
   if not LeafVE_DB.badgesAnnounced then LeafVE_DB.badgesAnnounced = {} end
 
-  local bucketKey = tostring(CurrentWipeVersion())..":"..badgeId
-  -- Respect legacy keying while migrating to bucket-scoped flags.
-  if LeafVE_DB.badgesAnnounced[bucketKey] or LeafVE_DB.badgesAnnounced[badgeId] then
+  local shortPlayerName = ShortName(playerName) or tostring(playerName or "")
+  local legacyBucketKey = tostring(CurrentWipeVersion())..":"..badgeId
+  local bucketKey = tostring(CurrentWipeVersion())..":"..shortPlayerName..":"..badgeId
+  if LeafVE_DB.badgesAnnounced[bucketKey] then
     return false
   end
 
+  -- Clear legacy unscoped keys so old seasons do not permanently suppress
+  -- current guild announcements after the bucket-scoped migration.
+  if LeafVE_DB.badgesAnnounced[badgeId] then
+    LeafVE_DB.badgesAnnounced[badgeId] = nil
+  end
+  if LeafVE_DB.badgesAnnounced[legacyBucketKey] then
+    LeafVE_DB.badgesAnnounced[legacyBucketKey] = nil
+  end
   LeafVE_DB.badgesAnnounced[bucketKey] = true
-  LeafVE_DB.badgesAnnounced[badgeId] = true
-
-  -- Suppress season-reset spam for badges already earned in archived seasons.
-  if HadBadgeInArchivedSeason(playerName, badgeId) then
-    return false
-  end
   return true
+end
+
+local BADGE_ANNOUNCEMENT_FLAVORS = {
+  ["Activity"] = {
+    "showing relentless dedication to the Leaf",
+    "keeping the village standard high day after day",
+    "proving steady devotion to the Shinobi path",
+  },
+  ["Social"] = {
+    "standing shoulder to shoulder with fellow Shinobis",
+    "strengthening the village through teamwork",
+    "building bonds that make the Leaf stronger",
+  },
+  ["Shinobi Combatant"] = {
+    "defending the Leaf alongside other Shinobis",
+    "holding the line with fellow Shinobis in battle",
+    "bringing honor to the village on the battlefield",
+  },
+  ["Recognition"] = {
+    "uplifting the village through respect and recognition",
+    "showing that honor and gratitude still matter in the Leaf",
+    "earning the trust and respect of fellow Shinobis",
+  },
+  ["Milestones"] = {
+    "reaching another legendary milestone for the Leaf",
+    "pushing their Shinobi legend even higher",
+    "proving their name belongs among the village elite",
+  },
+  ["Raids"] = {
+    "leading the charge through the village's fiercest battles",
+    "standing strong in the Leaf's hardest encounters",
+    "conquering dangerous missions for the village",
+  },
+  ["Loyalty"] = {
+    "remaining steadfast in service to the Leaf",
+    "showing unwavering loyalty to the village",
+    "staying true to the village through every season",
+  },
+  ["Work Orders"] = {
+    "keeping the village supplied and battle-ready",
+    "supporting the Leaf through tireless craftsmanship",
+    "answering the village's call with skilled hands",
+  },
+  default = {
+    "bringing honor to the Leaf",
+    "serving the village with distinction",
+    "strengthening the Leaf through their efforts",
+  },
+}
+
+local function GetBadgeAnnouncementFlavor(playerName, badge)
+  local flavorList = BADGE_ANNOUNCEMENT_FLAVORS[(badge and badge.category) or "default"]
+    or BADGE_ANNOUNCEMENT_FLAVORS.default
+  local count = table.getn(flavorList)
+  if count <= 0 then
+    return "bringing honor to the Leaf"
+  end
+
+  local seedText = tostring(playerName or "") .. ":" .. tostring(badge and badge.id or "") .. ":" .. tostring(Now())
+  local hash = 0
+  for i = 1, string.len(seedText) do
+    hash = ((hash * 33) + (string.byte(seedText, i) or 0)) % 2147483647
+  end
+  return flavorList[(hash % count) + 1]
+end
+
+local function AnnounceBadgeInGuild(playerName, badge)
+  if not badge or not ShouldAnnounceBadgeInGuild(playerName, badge.id) then
+    return
+  end
+  local flavor = GetBadgeAnnouncementFlavor(playerName, badge)
+  local badgeName = tostring(badge.name or badge.id or "Unknown Badge")
+  local announceText = "earned [" .. badgeName .. "] for " .. flavor
+  local unlockedTitle = LeafVE:GetTitleDefinition(badge.id)
+  if unlockedTitle and unlockedTitle.title and unlockedTitle.title ~= "" then
+    announceText = announceText .. " and now shall be known as [" .. tostring(unlockedTitle.title) .. "]"
+  end
+  LeafVE:SendSystemChatMessage(announceText .. "!", "GUILD")
 end
 
 function LeafVE:AwardBadge(playerName, badgeId)
@@ -2715,13 +5731,7 @@ function LeafVE:AwardBadge(playerName, badgeId)
   end
   
   -- Check if badge exists
-  local badge = nil
-  for i = 1, table.getn(BADGES) do
-    if BADGES[i].id == badgeId then
-      badge = BADGES[i]
-      break
-    end
-  end
+  local badge = GetBadgeDefinition(badgeId)
 
   if not badge then
     Print("ERROR: Badge '"..badgeId.."' does not exist")
@@ -2753,19 +5763,19 @@ function LeafVE:AwardBadge(playerName, badgeId)
       self:ShowNotification("Badge Earned! ["..qualityLabel.."]", badge.name..": "..badge.desc, badge.icon, {qr, qg, qb, 1})
     end
     Print("|cFF"..RGBToHex(qr, qg, qb).."["..qualityLabel.."] Badge Earned:|r "..badge.name.." - "..badge.desc)
+
+    local unlockedTitle = self:GetTitleDefinition(badgeId)
+    if unlockedTitle then
+      local unlockedTitleMarkup = "|cFF" .. RGBToHex(qr, qg, qb) .. "[" .. tostring(unlockedTitle.title or "") .. "]|r"
+      if LeafVE_DB.options.enableNotifications ~= false and LeafVE_DB.options.enableBadgeNotifications ~= false then
+        self:ShowNotification("Title Unlocked", tostring(unlockedTitle.title or "New Title") .. " can now be equipped in Titles.", badge.icon, {qr, qg, qb, 1})
+      end
+      Print("|cFF2DD35CNew Title Unlocked:|r " .. unlockedTitleMarkup .. " |cFFAAAAAA(Character -> Titles)|r")
+    end
   end
 
   -- Send guild chat announcement (only once per badge, never re-announce)
-  if ShouldAnnounceBadgeInGuild(playerName, badgeId) then
-      local badgeQuality = badge.quality or BADGE_QUALITY.COMMON
-      local qr, qg, qb = GetBadgeQualityColor(badgeQuality)
-      local badgeLink = "|cFF"..RGBToHex(qr, qg, qb).."|Hleafve_badge:"..badge.id.."|h["..badge.name.."]|h|r"
-      local titleStr = ""
-      if LeafVE_AchTest_DB and LeafVE_AchTest_DB[playerName] and LeafVE_AchTest_DB[playerName].equippedTitle and LeafVE_AchTest_DB[playerName].equippedTitle ~= "" then
-        titleStr = "|cFFFF8000[" .. LeafVE_AchTest_DB[playerName].equippedTitle .. "]|r"
-      end
-      SendChatMessage(titleStr.."[LeafVE Note] received "..badgeLink.." for contributing to the guild!", "GUILD")
-  end
+  AnnounceBadgeInGuild(playerName, badge)
 
   -- Broadcast badges immediately after awarding
   if me and playerName == me then
@@ -2780,6 +5790,9 @@ function LeafVE:AwardBadge(playerName, badgeId)
   -- Refresh badges tab if open
   if LeafVE.UI.panels and LeafVE.UI.panels.badges and LeafVE.UI.panels.badges:IsVisible() then
     LeafVE.UI:RefreshBadges()
+  end
+  if LeafVE.UI.panels and LeafVE.UI.panels.titles and LeafVE.UI.panels.titles:IsVisible() then
+    LeafVE.UI:RefreshTitlesPanel()
   end
 end
 
@@ -2805,6 +5818,50 @@ function LeafVE:AwardRandomBadge(playerName)
   self:AwardBadge(playerName, unearned[idx])
 end
 
+function LeafVE:ResetMyBadges()
+  EnsureDB()
+  if not self:IsAdminRank() then
+return false, "Only Kage / Hokage can reset badges from the admin panel."
+  end
+
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return false, "Could not determine your character name."
+  end
+
+  LeafVE_DB.badges[me] = {}
+  LeafVE_DB.equippedTitles[me] = nil
+  self:SetTitleCacheRecord(me, nil, Now())
+
+  if LeafVE_DB.badgesAnnounced then
+    for key, _ in pairs(LeafVE_DB.badgesAnnounced) do
+      if type(key) == "string" and string.find(key, ":" .. me .. ":", 1, true) then
+        LeafVE_DB.badgesAnnounced[key] = nil
+      end
+    end
+  end
+
+  if self.BroadcastBadges then
+    self:BroadcastBadges()
+  end
+  self:BroadcastMyEquippedTitle(true)
+
+  if LeafVE.UI then
+    if LeafVE.UI.cardCurrentPlayer and Lower(LeafVE.UI.cardCurrentPlayer) == Lower(me) and LeafVE.UI.UpdateCardRecentBadges then
+      LeafVE.UI:UpdateCardRecentBadges(me)
+    end
+    if LeafVE.UI.panels and LeafVE.UI.panels.badges and LeafVE.UI.panels.badges:IsVisible() and LeafVE.UI.RefreshBadges then
+      LeafVE.UI:RefreshBadges()
+    end
+    if LeafVE.UI.panels and LeafVE.UI.panels.titles and LeafVE.UI.panels.titles:IsVisible() and LeafVE.UI.RefreshTitlesPanel then
+      LeafVE.UI:RefreshTitlesPanel()
+    end
+  end
+
+  Print("|cFF88FF88Your current-season badges have been reset.|r")
+  return true
+end
+
 -- Wipes all saved data for the current player (account-wide).
 -- Clears both the per-character DB and all per-player entries in the shared DB,
 -- then broadcasts a removal notice to online guild members so their caches are
@@ -2825,6 +5882,8 @@ function LeafVE:ResetMyData()
   LeafVE_DB.groupSessions[me]      = nil
   LeafVE_DB.groupPointsToday[me]   = nil
   LeafVE_DB.guildieGroupHours[me]  = nil
+  LeafVE_DB.guildieHonorableKills[me] = nil
+  LeafVE_DB.pvpStats[me]           = nil
   if LeafVE_DB.guildJoinDate then LeafVE_DB.guildJoinDate[me] = nil end
   LeafVE_DB.attendance[me]         = nil
   LeafVE_DB.pointHistory[me]       = nil
@@ -2832,7 +5891,13 @@ function LeafVE:ResetMyData()
   LeafVE_DB.questTracking[me]      = nil
   LeafVE_DB.questCompletions[me]   = nil
   LeafVE_DB.badges[me]             = nil
+  LeafVE_DB.equippedTitles[me]     = nil
   LeafVE_DB.badgesAnnounced[me]    = nil
+  for key, _ in pairs(LeafVE_DB.badgesAnnounced) do
+    if type(key) == "string" and string.find(key, ":" .. me .. ":", 1, true) then
+      LeafVE_DB.badgesAnnounced[key] = nil
+    end
+  end
   -- Remove from leaderboard caches.
   LeafVE_DB.lboard.alltime[me]     = nil
   LeafVE_DB.lboard.updatedAt[me]   = nil
@@ -2854,6 +5919,9 @@ function LeafVE:ResetMyData()
   -- Clear account-wide (GlobalDB) entries for this player.
   if LeafVE_GlobalDB.achievementCache then
     LeafVE_GlobalDB.achievementCache[me] = nil
+  end
+  if LeafVE_GlobalDB.titleCache then
+    LeafVE_GlobalDB.titleCache[Lower(me)] = nil
   end
   if LeafVE_GlobalDB.lboardCache then
     if LeafVE_GlobalDB.lboardCache.alltime then
@@ -3077,7 +6145,7 @@ end
 -- Admin-only full wipe. This is the sole guild-wide reset path.
 function LeafVE:ExecuteAdminFullDataWipe()
   if not self:IsAdminRank() then
-    Print("|cFFFF4444Access denied: only Anbu / Sannin / Hokage can perform a full data wipe.|r")
+Print("|cFFFF4444Access denied: only Kage / Hokage can perform a full data wipe.|r")
     return
   end
 
@@ -3160,6 +6228,9 @@ function LeafVE:CreateToastFrame()
   local icon = toast:CreateTexture(nil, "ARTWORK") icon:SetWidth(48) icon:SetHeight(48) icon:SetPoint("LEFT", toast, "LEFT", 12, 0) toast.icon = icon
   local title = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge") title:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, -5) title:SetPoint("RIGHT", toast, "RIGHT", -12, 0) title:SetJustifyH("LEFT") toast.title = title
   local message = toast:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") message:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5) message:SetPoint("RIGHT", toast, "RIGHT", -12, 0) message:SetJustifyH("LEFT") toast.message = message
+  if LeafVE.UI and LeafVE.UI.ApplyPopupScale then
+    LeafVE.UI:ApplyPopupScale(toast)
+  end
   toast:Hide() self.toastFrame = toast
 end
 
@@ -3199,10 +6270,7 @@ function LeafVE:CheckAndAwardBadge(playerName, badgeId)
   if not LeafVE_DB.badges[playerName] then LeafVE_DB.badges[playerName] = {} end
   if LeafVE_DB.badges[playerName][badgeId] then return false end
   LeafVE_DB.badges[playerName][badgeId] = Now()
-  local badge = nil
-  for i = 1, table.getn(BADGES) do
-    if BADGES[i].id == badgeId then badge = BADGES[i] break end
-  end
+  local badge = GetBadgeDefinition(badgeId)
   if badge then
     local me = ShortName(UnitName("player"))
     if me and Lower(playerName) == Lower(me) then
@@ -3213,14 +6281,7 @@ function LeafVE:CheckAndAwardBadge(playerName, badgeId)
         self:ShowNotification("Badge Earned! ["..qualityLabel.."]", badge.name..": "..badge.desc, badge.icon, {qr, qg, qb, 1})
       end
       Print("|cFF"..RGBToHex(qr, qg, qb).."["..qualityLabel.."] Badge Earned:|r "..badge.name.." - "..badge.desc)
-      if ShouldAnnounceBadgeInGuild(playerName, badgeId) then
-        local badgeLink = "|cFF"..RGBToHex(qr, qg, qb).."|Hleafve_badge:"..badge.id.."|h["..badge.name.."]|h|r"
-        local titleStr = ""
-        if LeafVE_AchTest_DB and LeafVE_AchTest_DB[playerName] and LeafVE_AchTest_DB[playerName].equippedTitle and LeafVE_AchTest_DB[playerName].equippedTitle ~= "" then
-          titleStr = "|cFFFF8000[" .. LeafVE_AchTest_DB[playerName].equippedTitle .. "]|r"
-        end
-        SendChatMessage(titleStr.."[LeafVE Note] received "..badgeLink.." for contributing to the guild!", "GUILD")
-      end
+      AnnounceBadgeInGuild(playerName, badge)
       self:BroadcastBadges()
       if LeafVE.UI.cardCurrentPlayer == playerName then
         LeafVE.UI:UpdateCardRecentBadges(playerName)
@@ -3289,11 +6350,40 @@ function LeafVE:CheckBadgeMilestones(playerName)
   if groupHours >= 500 then
     self:CheckAndAwardBadge(playerName, "guildie_hours_500")
   end
-  if groupHours >= 1000 then 
+  if groupHours >= 1000 then
     self:CheckAndAwardBadge(playerName, "guildie_hours_1000") 
   end
-  if groupHours >= 10000 then 
+  if groupHours >= 10000 then
     self:CheckAndAwardBadge(playerName, "guildie_hours_10000") 
+  end
+
+  local guildieHonorableKills = GetBestGuildieHonorableKills(playerName)
+  if guildieHonorableKills >= 100 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_100")
+  end
+  if guildieHonorableKills >= 500 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_500")
+  end
+  if guildieHonorableKills >= 1000 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_1000")
+  end
+  if guildieHonorableKills >= 2500 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_2500")
+  end
+  if guildieHonorableKills >= 5000 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_5000")
+  end
+  if guildieHonorableKills >= 7500 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_7500")
+  end
+  if guildieHonorableKills >= 10000 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_10000")
+  end
+  if guildieHonorableKills >= 25000 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_25000")
+  end
+  if guildieHonorableKills >= 50000 then
+    self:CheckAndAwardBadge(playerName, "shinobi_combatant_50000")
   end
   
   -- === POINT MILESTONES ===
@@ -3347,19 +6437,19 @@ function LeafVE:CheckBadgeMilestones(playerName)
   -- === WORK ORDER REPUTATION ===
   local repEntry = self:GetWorkOrderReputationForPlayer(playerName)
   local workOrderRep = repEntry and (tonumber(repEntry.totalRep) or 0) or 0
-  if workOrderRep >= 50 then
+  if workOrderRep >= (WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.firstContract or 100) then
     self:CheckAndAwardBadge(playerName, "work_order_rep_50")
   end
-  if workOrderRep >= 150 then
+  if workOrderRep >= (WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.trustedHand or 300) then
     self:CheckAndAwardBadge(playerName, "work_order_rep_150")
   end
-  if workOrderRep >= 400 then
+  if workOrderRep >= (WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.villageArtisan or 750) then
     self:CheckAndAwardBadge(playerName, "work_order_rep_400")
   end
-  if workOrderRep >= 800 then
+  if workOrderRep >= (WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.masterSupplier or 1500) then
     self:CheckAndAwardBadge(playerName, "work_order_rep_800")
   end
-  if workOrderRep >= 1500 then
+  if workOrderRep >= (WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.leafLegend or 3000) then
     self:CheckAndAwardBadge(playerName, "work_order_rep_1500")
   end
 
@@ -3409,6 +6499,24 @@ function LeafVE:GetBadgeProgress(playerName, badgeId)
     return GetBestGuildieGroupHours(name), 1000
   elseif badgeId == "guildie_hours_10000" then
     return GetBestGuildieGroupHours(name), 10000
+  elseif badgeId == "shinobi_combatant_100" then
+    return GetBestGuildieHonorableKills(name), 100
+  elseif badgeId == "shinobi_combatant_500" then
+    return GetBestGuildieHonorableKills(name), 500
+  elseif badgeId == "shinobi_combatant_1000" then
+    return GetBestGuildieHonorableKills(name), 1000
+  elseif badgeId == "shinobi_combatant_2500" then
+    return GetBestGuildieHonorableKills(name), 2500
+  elseif badgeId == "shinobi_combatant_5000" then
+    return GetBestGuildieHonorableKills(name), 5000
+  elseif badgeId == "shinobi_combatant_7500" then
+    return GetBestGuildieHonorableKills(name), 7500
+  elseif badgeId == "shinobi_combatant_10000" then
+    return GetBestGuildieHonorableKills(name), 10000
+  elseif badgeId == "shinobi_combatant_25000" then
+    return GetBestGuildieHonorableKills(name), 25000
+  elseif badgeId == "shinobi_combatant_50000" then
+    return GetBestGuildieHonorableKills(name), 50000
   elseif badgeId == "shoutout_received_10" or badgeId == "shoutout_received_50" then
     local count = 0
     local bucket = CurrentWipeVersion()
@@ -3450,11 +6558,11 @@ function LeafVE:GetBadgeProgress(playerName, badgeId)
     or badgeId == "work_order_rep_1500" then
     local repEntry = self:GetWorkOrderReputationForPlayer(name)
     local totalRep = repEntry and (tonumber(repEntry.totalRep) or 0) or 0
-    if badgeId == "work_order_rep_50" then return totalRep, 50 end
-    if badgeId == "work_order_rep_150" then return totalRep, 150 end
-    if badgeId == "work_order_rep_400" then return totalRep, 400 end
-    if badgeId == "work_order_rep_800" then return totalRep, 800 end
-    return totalRep, 1500
+    if badgeId == "work_order_rep_50" then return totalRep, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.firstContract or 100 end
+    if badgeId == "work_order_rep_150" then return totalRep, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.trustedHand or 300 end
+    if badgeId == "work_order_rep_400" then return totalRep, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.villageArtisan or 750 end
+    if badgeId == "work_order_rep_800" then return totalRep, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.masterSupplier or 1500 end
+    return totalRep, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.leafLegend or 3000
   end
   return nil, nil
 end
@@ -3523,7 +6631,7 @@ function LeafVE:AddPoints(playerName, pointType, amount, skipMultiplier)
     local typeNames = {L = "Login", G = "Gameplay", S = "Social"}
     if not self.suppressPointNotification then
       if LeafVE_DB.options.enableNotifications ~= false and LeafVE_DB.options.enablePointNotifications ~= false then
-        self:ShowNotification("Points Earned!", string.format("+%d %s Point%s", amount, typeNames[pointType] or "?", amount > 1 and "s" or ""), LEAF_EMBLEM, THEME.leaf)
+        self:ShowNotification("Points Earned!", string.format("+%s %s Point%s", self:FormatPointAmount(amount), typeNames[pointType] or "?", math.abs(amount - 1) < 0.001 and "" or "s"), LEAF_EMBLEM, THEME.leaf)
       end
     end
   end
@@ -3651,9 +6759,22 @@ function LeafVE:IsOfficer()
   return false
 end
 
--- Returns true if the current player holds an admin guild rank (Anbu, Sannin, or Hokage).
+function LeafVE:GetCanonicalGuildRankName(playerName)
+  local rankName = self:GetNormalizedGuildRankName(playerName)
+  if rankName == "" then
+    return ""
+  end
+  return RANK_NAME_ALIASES[rankName] or rankName
+end
+
+-- Returns true if the current player holds an admin guild rank (Kage or Hokage).
 function LeafVE:IsAdminRank()
-  return true
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return false
+  end
+  self:UpdateGuildRosterCache()
+  return ADMIN_RANKS[self:GetCanonicalGuildRankName(me)] and true or false
 end
 
 function LeafVE:GetConfiguredGroupInterval()
@@ -3894,7 +7015,23 @@ end
 
 -- Returns true if the current player holds an approved Leaf Village rank.
 function LeafVE:HasLeafAccess()
-  return true
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return false
+  end
+  self:UpdateGuildRosterCache()
+  return ACCESS_RANKS[self:GetCanonicalGuildRankName(me)] and true or false
+end
+
+function LeafVE:RefreshMinimapButtonAccess()
+  if not self.minimapBtn then
+    return
+  end
+  if self:HasLeafAccess() then
+    self.minimapBtn:Show()
+  else
+    self.minimapBtn:Hide()
+  end
 end
 
 -- Returns true if `name` appears in the in-memory roster cache or the
@@ -3930,6 +7067,149 @@ end
 
 function LeafVE:GetGroupHash(members) table.sort(members) return table.concat(members, ",") end
 
+local function GetLifetimeHonorableKills()
+  if type(GetPVPLifetimeStats) ~= "function" then
+    return nil
+  end
+  local ok, honorableKills = pcall(GetPVPLifetimeStats)
+  if not ok then
+    return nil
+  end
+  honorableKills = tonumber(honorableKills)
+  if honorableKills == nil or honorableKills < 0 then
+    return nil
+  end
+  return honorableKills
+end
+
+function LeafVE:PrimeHonorableKillTracker()
+  EnsureDB()
+  local me = ShortName(UnitName("player"))
+  if not me then return end
+  if not LeafVE_DB.pvpStats[me] then LeafVE_DB.pvpStats[me] = {} end
+
+  local currentKills = GetLifetimeHonorableKills()
+  if currentKills ~= nil then
+    LeafVE_DB.pvpStats[me].lastLifetimeHonorableKills = currentKills
+  end
+end
+
+function LeafVE:RecordGuildieHonorableKillProgress(playerName, killCount)
+  EnsureDB()
+  playerName = ShortName(playerName)
+  killCount = tonumber(killCount) or 0
+  if not playerName or killCount <= 0 then
+    return 0
+  end
+
+  if not LeafVE_DB.guildieHonorableKills then LeafVE_DB.guildieHonorableKills = {} end
+  LeafVE_DB.guildieHonorableKills[playerName] = (LeafVE_DB.guildieHonorableKills[playerName] or 0) + killCount
+  self:AddShinobiDutyWeeklyStat(playerName, "guildieHonorableKills", killCount)
+  self:CacheBadgeProgress(playerName)
+  self:CheckBadgeMilestones(playerName)
+  if InGuild() then
+    self:BroadcastBadgeProgress()
+  end
+  self:RefreshShinobiDutyProgress(playerName)
+
+  return LeafVE_DB.guildieHonorableKills[playerName]
+end
+
+function LeafVE:ApplyGuildieHonorableKillPointAward(playerName, killCount, guildieList)
+  EnsureDB()
+  playerName = ShortName(playerName)
+  local requestedKills = tonumber(killCount) or 0
+  if not playerName or requestedKills <= 0 then
+    return 0
+  end
+
+  local today = DayKey()
+  if not LeafVE_DB.groupPointsToday then LeafVE_DB.groupPointsToday = {} end
+  if not LeafVE_DB.groupPointsToday[playerName] then LeafVE_DB.groupPointsToday[playerName] = {} end
+  local todayData = LeafVE_DB.groupPointsToday[playerName]
+  if todayData.date ~= today then
+    todayData.date = today
+    todayData.earned = 0
+  end
+
+  local pointsToAward = requestedKills * 0.5
+  if GROUP_POINTS_DAILY_CAP ~= 0 then
+    local earned = todayData.earned or 0
+    if earned >= GROUP_POINTS_DAILY_CAP then
+      return 0
+    end
+    local remaining = GROUP_POINTS_DAILY_CAP - earned
+    if pointsToAward > remaining then
+      pointsToAward = remaining
+    end
+  end
+
+  if pointsToAward <= 0 then
+    return 0
+  end
+
+  local awarded = self:AddPoints(playerName, "G", pointsToAward, true)
+  if awarded and awarded > 0 then
+    todayData.earned = (todayData.earned or 0) + awarded
+    self:CacheBadgeProgress(playerName)
+    local reason = "Honorable kill alongside guildies"
+    if requestedKills > 1 then
+      reason = "Honorable kills alongside guildies (" .. tostring(requestedKills) .. " HKs)"
+    end
+    if guildieList and guildieList ~= "" then
+      reason = reason .. ": " .. tostring(guildieList)
+    end
+    self:AddToHistory(playerName, "G", awarded, reason)
+    if LeafVE.UI and LeafVE.UI.Refresh then LeafVE.UI:Refresh() end
+    self:BroadcastLeaderboardData()
+    return awarded
+  end
+
+  if LeafVE.UI and LeafVE.UI.Refresh then LeafVE.UI:Refresh() end
+  return 0
+end
+
+function LeafVE:HandleHonorableKillUpdate()
+  EnsureDB()
+  local me = ShortName(UnitName("player"))
+  if not me then return end
+  if not LeafVE_DB.pvpStats then LeafVE_DB.pvpStats = {} end
+  if not LeafVE_DB.pvpStats[me] then LeafVE_DB.pvpStats[me] = {} end
+
+  local currentKills = GetLifetimeHonorableKills()
+  if currentKills == nil then
+    return
+  end
+
+  local previousKills = LeafVE_DB.pvpStats[me].lastLifetimeHonorableKills
+  if previousKills == nil then
+    LeafVE_DB.pvpStats[me].lastLifetimeHonorableKills = currentKills
+    return
+  end
+
+  previousKills = tonumber(previousKills) or 0
+  if currentKills <= previousKills then
+    LeafVE_DB.pvpStats[me].lastLifetimeHonorableKills = currentKills
+    return
+  end
+
+  LeafVE_DB.pvpStats[me].lastLifetimeHonorableKills = currentKills
+
+  local killDelta = currentKills - previousKills
+  if killDelta <= 0 then
+    return
+  end
+
+  local guildies = self:GetGroupGuildies()
+  if table.getn(guildies) <= 0 then
+    return
+  end
+
+  local guildieList = table.concat(guildies, ", ")
+  self:RecordGuildieHonorableKillProgress(me, killDelta)
+  self:ApplyGuildieHonorableKillPointAward(me, killDelta, guildieList)
+end
+
 -- Shared helper: apply a group-point award for the local player.
 -- Handles daily cap, AddPoints, history, badges, and chat feedback.
 -- Returns the number of points actually awarded (0 if capped or ineligible).
@@ -3947,9 +7227,11 @@ function LeafVE:ApplyGroupPointAward(playerName, pointsPerGuildie, numGuildies, 
   -- Each valid hourly tick always advances guildie-hour progress, even when LP is capped.
   LeafVE_DB.groupSessions[playerName] = (LeafVE_DB.groupSessions[playerName] or 0) + 1
   LeafVE_DB.guildieGroupHours[playerName] = (LeafVE_DB.guildieGroupHours[playerName] or 0) + 1
+  self:AddShinobiDutyWeeklyStat(playerName, "groupHours", 1)
   self:CacheBadgeProgress(playerName)
   self:CheckBadgeMilestones(playerName)
   if InGuild() then self:BroadcastBadgeProgress() end
+  self:RefreshShinobiDutyProgress(playerName)
 
   if GROUP_POINTS_DAILY_CAP ~= 0 then
     local earned = todayData.earned or 0
@@ -4335,6 +7617,7 @@ function LeafVE:OnQuestTurnedIn()
   if questTitle then histMsg = "Quest: "..questTitle end
   if awarded and awarded > 0 then
     self:AddToHistory(me, "G", awarded, histMsg)
+    self:RefreshShinobiDutyProgress(me)
     if LeafVE_DB.options.enableNotifications ~= false and LeafVE_DB.options.enablePointNotifications ~= false then
       self:ShowNotification("Quest Complete!", string.format("[%s] +%d LP", displayTitle, awarded), QUEST_ICON, THEME.gold)
     end
@@ -4378,8 +7661,8 @@ function LeafVE:GiveShoutout(targetName, reason)
   end
   
   local maxDaily = self:GetShoutoutDailyLimitForPlayer(giverName)
-  if count >= maxDaily then 
-    Print(string.format("You've used all %d shoutouts for today!", maxDaily)) 
+  if (not self:IsUnlimitedShoutoutDailyLimit(maxDaily)) and count >= maxDaily then
+    Print(string.format("You've used all %s shoutouts for today!", self:GetShoutoutDailyLimitLabel(maxDaily)))
     return false 
   end
   
@@ -4401,14 +7684,12 @@ function LeafVE:GiveShoutout(targetName, reason)
     self:BroadcastLeaderboardData()
   end
   self:CheckAndAwardBadge(giverName, "first_shoutout_given")
+  self:RefreshShinobiDutyProgress(giverName)
   
   if InGuild() then
     reason = reason and Trim(reason) or ""
     
-    local title = nil
-    if LeafVE_AchTest_DB and LeafVE_AchTest_DB[giverName] and LeafVE_AchTest_DB[giverName].equippedTitle then
-      title = LeafVE_AchTest_DB[giverName].equippedTitle
-    end
+    local title = LeafVE:GetEquippedTitleNameForPlayer(giverName)
     
     local message
     if title and title ~= "" then
@@ -4422,25 +7703,50 @@ function LeafVE:GiveShoutout(targetName, reason)
     end
     
     message = message .. " (+"..shoutPts.." Leaf Points)"
-    SendChatMessage(message, "GUILD")
+    LeafVE:SendSystemChatMessage(message, "GUILD")
     SendAddonMessage("LeafVE", "SHOUTOUT:"..giverName..":"..targetName, "GUILD")
   end
   
-  local remaining = maxDaily - count - 1
-  Print(string.format("Shoutout sent to %s! (%d remaining today)", targetName, remaining))
+  if self:IsUnlimitedShoutoutDailyLimit(maxDaily) then
+    Print(string.format("Shoutout sent to %s! (unlimited remaining today)", targetName))
+  else
+    local remaining = math.max(0, maxDaily - count - 1)
+    Print(string.format("Shoutout sent to %s! (%d remaining today)", targetName, remaining))
+  end
   return true
 end
 
 function LeafVE:BroadcastMyAchievements()
   EnsureDB()
 
-  if not LeafVE_AchTest_DB or not LeafVE_AchTest_DB.achievements then return end
+  local achievements = self:GetLocalCompletedAchievementEntries(true)
+  if table.getn(achievements) == 0 then return end
 
-  -- Build entries: "achID:timestamp" pairs
+  local me = ShortName(UnitName("player"))
+  if me then
+    if not LeafVE_GlobalDB.achievementCache then
+      LeafVE_GlobalDB.achievementCache = {}
+    end
+
+    local selfCache = {}
+    local totalPoints = 0
+    for _, achievement in ipairs(achievements) do
+      local key = AchievementKey(achievement.id)
+      if key then
+        selfCache[key] = tonumber(achievement.timestamp) or 0
+        totalPoints = totalPoints + (tonumber(achievement.points) or 0)
+      end
+    end
+    selfCache._totalPoints = totalPoints
+    LeafVE_GlobalDB.achievementCache[me] = selfCache
+  end
+
   local entries = {}
-  for achId, timestamp in pairs(LeafVE_AchTest_DB.achievements) do
-    if type(timestamp) == "number" and timestamp > 0 then
-      table.insert(entries, achId..":"..tostring(timestamp))
+  for _, achievement in ipairs(achievements) do
+    local key = AchievementKey(achievement.id)
+    local timestamp = tonumber(achievement.timestamp) or 0
+    if key then
+      table.insert(entries, key..":"..tostring(timestamp))
     end
   end
 
@@ -4493,7 +7799,7 @@ function LeafVE:BroadcastBadges()
 end
 
 -- Broadcast badge progress metrics so other guild members can display progress bars
--- Format: BADGEPROG:<name>:<groupSessions>:<attendance>:<loginStreak>:<guildJoinDate>:<guildieGroupHours>
+-- Format: BADGEPROG:<name>:<groupSessions>:<attendance>:<loginStreak>:<guildJoinDate>:<guildieGroupHours>:<guildieHonorableKills>
 function LeafVE:BroadcastBadgeProgress()
   if not InGuild() then return end
   local me = ShortName(UnitName("player"))
@@ -4513,7 +7819,8 @@ function LeafVE:BroadcastBadgeProgress()
   local streak = GetBestLoginStreak(me)
   local joinDate = GetBestGuildJoinDate(me)
   local guildieGroupHoursMe = GetBestGuildieGroupHours(me)
-  SendAddonMessage("LeafVE", "BADGEPROG:"..me..SEP..groupSessions..SEP..attendance..SEP..streak..SEP..joinDate..SEP..guildieGroupHoursMe, "GUILD")
+  local guildieHonorableKillsMe = GetBestGuildieHonorableKills(me)
+  SendAddonMessage("LeafVE", "BADGEPROG:"..me..SEP..groupSessions..SEP..attendance..SEP..streak..SEP..joinDate..SEP..guildieGroupHoursMe..SEP..guildieHonorableKillsMe, "GUILD")
 end
 
 function LeafVE:BroadcastLeaderboardData(includeKnownCache)
@@ -4562,7 +7869,7 @@ function LeafVE:BroadcastLeaderboardData(includeKnownCache)
       local lG = lbase and (lbase.G or 0) or 0
       local lS = lbase and (lbase.S or 0) or 0
       if (lL + lG + lS) > 0 then
-        table.insert(data, string.format("L:%s:%d:%d:%d", name, lL, lG, lS))
+        table.insert(data, string.format("L:%s:%s:%s:%s", name, LeafVE:FormatPointAmount(lL), LeafVE:FormatPointAmount(lG), LeafVE:FormatPointAmount(lS)))
       end
 
       local wbase
@@ -4576,7 +7883,7 @@ function LeafVE:BroadcastLeaderboardData(includeKnownCache)
       local wG = wbase and (wbase.G or 0) or 0
       local wS = wbase and (wbase.S or 0) or 0
       if (wL + wG + wS) > 0 then
-        table.insert(data, string.format("W%s:%s:%d:%d:%d", wk, name, wL, wG, wS))
+        table.insert(data, string.format("W%s:%s:%s:%s:%s", wk, name, LeafVE:FormatPointAmount(wL), LeafVE:FormatPointAmount(wG), LeafVE:FormatPointAmount(wS)))
       end
 
       local lifeTotal = lL + lG + lS
@@ -4621,8 +7928,8 @@ function LeafVE:BroadcastLeaderboardData(includeKnownCache)
     local weekTotal = wL + wG + wS
 
     -- Always include self entries (including zero) so peers can clear stale rows.
-    table.insert(data, string.format("L:%s:%d:%d:%d", me, lL, lG, lS))
-    table.insert(data, string.format("W%s:%s:%d:%d:%d", wk, me, wL, wG, wS))
+    table.insert(data, string.format("L:%s:%s:%s:%s", me, LeafVE:FormatPointAmount(lL), LeafVE:FormatPointAmount(lG), LeafVE:FormatPointAmount(lS)))
+    table.insert(data, string.format("W%s:%s:%s:%s:%s", wk, me, LeafVE:FormatPointAmount(wL), LeafVE:FormatPointAmount(wG), LeafVE:FormatPointAmount(wS)))
 
     if lifeTotal > 0 then
       StoreLifetimeSnapshot(me, lL, lG, lS, me, true, true)
@@ -5871,7 +9178,7 @@ function LeafVE:SetGuildBankOwner(ownerName, suppressBroadcast, updatedAt, updat
 
   local me = ShortName(UnitName("player"))
   if updatedAt == nil and not self:IsAdminRank() then
-    return nil, "Only Anbu / Sannin / Hokage can change the guild bank character."
+return nil, "Only Kage / Hokage can change the guild bank character."
   end
 
   local config = self:GetGuildBankConfig()
@@ -6653,7 +9960,7 @@ function LeafVE:SetGuildBankItemCategoryOverride(itemId, tabKey, silent, updated
     return nil, "Item not found."
   end
   if updatedAt == nil and not self:IsAdminRank() then
-    return nil, "Only Anbu / Sannin / Hokage can manually classify guild bank items."
+return nil, "Only Kage / Hokage can manually classify guild bank items."
   end
 
   local itemInfo = self:GetGuildBankItemInfoRecord(itemId, self:GetWorkOrderItemName(itemId))
@@ -6761,7 +10068,7 @@ function LeafVE:SetGuildBankItemHighValue(itemId, isHighValue, silent, updatedAt
     return nil, "Item not found."
   end
   if updatedAt == nil and not self:IsAdminRank() then
-    return nil, "Only Anbu / Sannin / Hokage can designate high value guild bank items."
+return nil, "Only Kage / Hokage can designate high value guild bank items."
   end
 
   local store = self:GetGuildBankHighValueDB()
@@ -8939,10 +12246,38 @@ end
 
 function LeafVE:OnAddonMessage(prefix, message, channel, sender)
   if prefix ~= "LeafVE" then return end
-  if channel ~= "GUILD" and channel ~= "PARTY" and channel ~= "RAID" then return end
   
   sender = ShortName(sender)
   if not sender then return end
+
+  if (
+    string.sub(message or "", 1, 10) == "ACCESSREQ:" or
+    string.sub(message or "", 1, 11) == "ACCESSRESP:" or
+    string.sub(message or "", 1, 10) == "ROSTERREQ:" or
+    string.sub(message or "", 1, 11) == "ROSTERDATA:" or
+    string.sub(message or "", 1, 8) == "CFGSYNC:" or
+    string.sub(message or "", 1, 7) == "CFGREQ:"
+  ) then
+    local ok, err = pcall(function()
+      LeafVE:HandleAllianceControlMessage(sender, tostring((LeafVE.allianceChat and LeafVE.allianceChat.controlPrefix) or "") .. tostring(message or ""))
+    end)
+    if not ok and Print then
+      Print("|cFFFF6666Leaf Alliance control error:|r " .. tostring(err))
+    end
+    return
+  end
+
+  if channel == "WHISPER" then
+    return
+  end
+
+  if channel ~= "GUILD" and channel ~= "PARTY" and channel ~= "RAID" then return end
+
+  if string.sub(message, 1, 9) == "ALLYPRES:" then
+    local seenAt = tonumber(string.sub(message, 10)) or Now()
+    self:RecordAllianceRosterBroadcasterPeer(sender, seenAt)
+    return
+  end
   
   -- Handle version check request
   if message == "VERSIONREQ" then
@@ -8963,14 +12298,14 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     local myVer = LeafVE.version
     if not LeafVE.shownVersionNag and VersionLessThan(myVer, ver) then
       LeafVE.shownVersionNag = true
-      Print("|cFFFFAA00⚠ Your Leaf Village Legends addon is outdated! You have v"..myVer..", latest is v"..ver..". Please update!|r")
+      Print("|cFFFFAA00Ã¢Å¡Â  Your Leaf Village Legends addon is outdated! You have v"..myVer..", latest is v"..ver..". Please update!|r")
     end
     -- Warn once when a guildmate's version is below the minimum compatible version
     if VersionLessThan(ver, LeafVE.minCompatVersion) then
       if not LeafVE.warnedOldVersion then LeafVE.warnedOldVersion = {} end
       if not LeafVE.warnedOldVersion[sender] then
         LeafVE.warnedOldVersion[sender] = true
-        Print("|cFFFF4444⚠ "..sender.." is running an outdated version (v"..ver..") and their synced data will not be accepted. Ask them to update to v"..LeafVE.minCompatVersion.."+.|r")
+        Print("|cFFFF4444Ã¢Å¡Â  "..sender.." is running an outdated version (v"..ver..") and their synced data will not be accepted. Ask them to update to v"..LeafVE.minCompatVersion.."+.|r")
       end
     end
     return
@@ -9052,6 +12387,7 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
       LeafVE_DB.questTracking[declaredName]     = nil
       LeafVE_DB.questCompletions[declaredName]  = nil
       LeafVE_DB.badges[declaredName]            = nil
+      LeafVE_DB.equippedTitles[declaredName]    = nil
       LeafVE_DB.badgesAnnounced[declaredName]   = nil
       LeafVE_DB.lboard.alltime[declaredName]    = nil
       LeafVE_DB.lboard.updatedAt[declaredName]  = nil
@@ -9070,6 +12406,9 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
       end
       if LeafVE_GlobalDB.achievementCache then
         LeafVE_GlobalDB.achievementCache[declaredName] = nil
+      end
+      if LeafVE_GlobalDB.titleCache then
+        LeafVE_GlobalDB.titleCache[Lower(declaredName)] = nil
       end
       if LeafVE_GlobalDB.lboardCache then
         if LeafVE_GlobalDB.lboardCache.alltime then
@@ -9111,6 +12450,46 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
       if LeafVE.UI and LeafVE.UI.Refresh then
         LeafVE.UI:Refresh()
       end
+    end
+    return
+  end
+
+  if string.sub(message, 1, 8) == "TITLEREQ:" then
+    local requestedName = ShortName(string.sub(message, 9))
+    local me = ShortName(UnitName("player"))
+    if requestedName and me and Lower(requestedName) == Lower(me) then
+      self:BroadcastMyEquippedTitle(true)
+    end
+    return
+  end
+
+  if string.sub(message, 1, 8) == "TITLEEQ:" then
+    local payload = string.sub(message, 9)
+    local fields = SplitByLiteralSep(payload, SEP)
+    local updatedAt = tonumber(fields[1]) or Now()
+    local titleId = DecodeTalentField(fields[2] or "")
+    local shortSender = ShortName(sender)
+    if not shortSender then
+      return
+    end
+    if titleId ~= "" and not self:GetTitleDefinition(titleId) then
+      return
+    end
+
+    local existing = LeafVE_GlobalDB.titleCache and LeafVE_GlobalDB.titleCache[Lower(shortSender)]
+    if existing and tonumber(existing.updatedAt or 0) > updatedAt then
+      return
+    end
+
+    self:SetTitleCacheRecord(shortSender, titleId ~= "" and titleId or nil, updatedAt)
+    if LeafVE_DB.equippedTitles then
+      LeafVE_DB.equippedTitles[shortSender] = titleId ~= "" and titleId or nil
+    end
+
+    if LeafVE.UI and LeafVE.UI.cardCurrentPlayer and Lower(LeafVE.UI.cardCurrentPlayer) == Lower(shortSender) then
+      LeafVE.UI:ShowPlayerCard(shortSender)
+    elseif LeafVE.UI and LeafVE.UI.frame and LeafVE.UI.frame:IsVisible() and LeafVE.UI.Refresh then
+      LeafVE.UI:Refresh()
     end
     return
   end
@@ -9269,6 +12648,19 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
   if string.sub(message, 1, 14) == "WORKORDERSYNC:" then
     if not IsSenderCompatible(sender) then return end
     self:HandleIncomingWorkOrderMessage(string.sub(message, 15), sender, true)
+    return
+  end
+
+  if string.sub(message, 1, 8) == "DUTYREP:" then
+    if not IsSenderCompatible(sender) then return end
+    local payload = string.sub(message, 9)
+    local fields = SplitByLiteralSep(payload, ":")
+    local declaredName = ShortName(fields[1] or "")
+    local amount = tonumber(fields[2]) or 0
+    local updatedAt = tonumber(fields[3]) or 0
+    if declaredName and updatedAt > 0 and Lower(declaredName) == Lower(sender or "") then
+      self:StoreShinobiDutyRepBonus(declaredName, amount, updatedAt, true)
+    end
     return
   end
 
@@ -9522,6 +12914,17 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
         LeafVE_DB.badges[sender][badgeId] = timestamp
       end
     end
+
+    local cachedTitle = LeafVE_GlobalDB.titleCache and LeafVE_GlobalDB.titleCache[Lower(sender)]
+    if cachedTitle and cachedTitle.titleId and cachedTitle.titleId ~= "" then
+      local equippedTitleDef = self:GetTitleDefinition(cachedTitle.titleId)
+      if equippedTitleDef and not badges[equippedTitleDef.badgeId] then
+        LeafVE_GlobalDB.titleCache[Lower(sender)] = nil
+        if LeafVE_DB.equippedTitles then
+          LeafVE_DB.equippedTitles[sender] = nil
+        end
+      end
+    end
     
     local count = 0
     for _ in pairs(badges) do count = count + 1 end
@@ -9529,6 +12932,7 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     -- Refresh UI if viewing this player
     if LeafVE.UI and LeafVE.UI.cardCurrentPlayer == sender then
       LeafVE.UI:UpdateCardRecentBadges(sender)
+      LeafVE.UI:ShowPlayerCard(sender)
     end
     
     return
@@ -9558,15 +12962,24 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     if not p4 then return end
     local streak = tonumber(string.sub(rest4, 1, p4 - 1)) or 0
     local rest5 = string.sub(rest4, p4 + 1)
-    -- Field 6 (guildieGroupHours) was added later; parse if present, else default to 0.
+    -- Fields 6+ were added later; parse them when present and default older payloads to 0.
     local p5 = string.find(rest5, SEP)
-    local joinDate, receivedGroupHours
+    local joinDate, receivedGroupHours, receivedGuildieHonorableKills
     if p5 then
       joinDate = tonumber(string.sub(rest5, 1, p5 - 1)) or 0
-      receivedGroupHours = tonumber(string.sub(rest5, p5 + 1)) or 0
+      local rest6 = string.sub(rest5, p5 + 1)
+      local p6 = string.find(rest6, SEP)
+      if p6 then
+        receivedGroupHours = tonumber(string.sub(rest6, 1, p6 - 1)) or 0
+        receivedGuildieHonorableKills = tonumber(string.sub(rest6, p6 + 1)) or 0
+      else
+        receivedGroupHours = tonumber(rest6) or 0
+        receivedGuildieHonorableKills = 0
+      end
     else
       joinDate = tonumber(rest5) or 0
       receivedGroupHours = 0
+      receivedGuildieHonorableKills = 0
     end
     EnsureDB()
     if not LeafVE_DB.groupSessions[normalizedProgName] or LeafVE_DB.groupSessions[normalizedProgName] < groupSessions then
@@ -9575,6 +12988,10 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     if not LeafVE_DB.guildieGroupHours then LeafVE_DB.guildieGroupHours = {} end
     if not LeafVE_DB.guildieGroupHours[normalizedProgName] or LeafVE_DB.guildieGroupHours[normalizedProgName] < receivedGroupHours then
       LeafVE_DB.guildieGroupHours[normalizedProgName] = receivedGroupHours
+    end
+    if not LeafVE_DB.guildieHonorableKills then LeafVE_DB.guildieHonorableKills = {} end
+    if not LeafVE_DB.guildieHonorableKills[normalizedProgName] or LeafVE_DB.guildieHonorableKills[normalizedProgName] < receivedGuildieHonorableKills then
+      LeafVE_DB.guildieHonorableKills[normalizedProgName] = receivedGuildieHonorableKills
     end
     if not LeafVE_DB.attendance[normalizedProgName] then LeafVE_DB.attendance[normalizedProgName] = {} end
     -- Pad attendance array to at least the reported count so badge milestone
@@ -9740,7 +13157,7 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
       end
       
       LeafVE:ReceiveLeaderboardData(sender, playerEntry)
-    end  -- ← CLOSE THE WHILE LOOP
+    end  -- Ã¢â€ Â CLOSE THE WHILE LOOP
     
     -- Refresh leaderboards if open
     if LeafVE.UI and LeafVE.UI.panels then
@@ -9846,12 +13263,21 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     local totalPts = 0
     for achId, _ in pairs(LeafVE_GlobalDB.achievementCache[sender]) do
       if achId ~= "_totalPoints" then
-        local meta = LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta and LeafVE_AchTest.GetAchievementMeta(achId)
+        local meta = LeafVE:GetAchievementMeta(achId)
         local pts = (meta and meta.points) or DEFAULT_ACHIEVEMENT_POINTS
         totalPts = totalPts + pts
       end
     end
     LeafVE_GlobalDB.achievementCache[sender]._totalPoints = totalPts
+
+    if LeafVE.UI and LeafVE.UI.cardCurrentPlayer and Lower(LeafVE.UI.cardCurrentPlayer) == Lower(sender) then
+      LeafVE.UI:ShowPlayerCard(LeafVE.UI.cardCurrentPlayer)
+    end
+
+    if LeafVE.UI and LeafVE.UI.achPopup and LeafVE.UI.achPopup:IsShown() and LeafVE.UI.achPopup.playerName and Lower(LeafVE.UI.achPopup.playerName) == Lower(sender) then
+      LeafVE.UI:RefreshAchievementPopup(LeafVE.UI.achPopup.playerName)
+    end
+
     -- Refresh the achievement leaderboard panel if it is visible
     if LeafVE.UI and LeafVE.UI.panels then
       if LeafVE.UI.panels.achievements and LeafVE.UI.panels.achievements:IsVisible() then
@@ -10230,7 +13656,7 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     if not pointsPerGuildie or not numGuildies then return end
     if numGuildies <= 0 then return end
     -- Verify sender is the expected guildie broadcaster: alphabetically-first among
-    -- {sender} ∪ {guildies in message}.  This mirrors the election in OnGroupUpdate.
+    -- {sender} Ã¢Ë†Âª {guildies in message}.  This mirrors the election in OnGroupUpdate.
     local broadcasterCandidates = {sender}
     local bpos = 1
     local bsearch = guildieNames .. ","
@@ -10281,7 +13707,7 @@ function LeafVE:OnAddonMessage(prefix, message, channel, sender)
     self.grpAwardFallbackAt = nil
     return
 
-  end  -- ← CLOSE THE OnAddonMessage FUNCTION
+  end  -- Ã¢â€ Â CLOSE THE OnAddonMessage FUNCTION
 end
       
       function LeafVE:ReceiveLeaderboardData(sender, playerData)
@@ -10614,7 +14040,7 @@ function LeafVE:BuildWeeklyRecapPopupMessage(playerName, snapshot)
     if type(entry) == "table" then
       table.insert(
         lines,
-        string.format("%d. %s - %d LP - Prize: %d", tonumber(entry.rank) or i, tostring(entry.name or "Unknown"), tonumber(entry.total) or 0, tonumber(entry.reward) or 0)
+        string.format("%d. %s - %s LP - Prize: %d", tonumber(entry.rank) or i, tostring(entry.name or "Unknown"), LeafVE:FormatPointAmount(tonumber(entry.total) or 0), tonumber(entry.reward) or 0)
       )
     end
   end
@@ -10642,7 +14068,7 @@ function LeafVE:BuildWeeklyTopShinobisText(snapshot)
   local entries = type(snapshot.entries) == "table" and snapshot.entries or nil
   if not entries or table.getn(entries) < 1 then
     if snapshot.name and (tonumber(snapshot.total) or 0) > 0 then
-      return string.format("%s %s - |cFFFFD700%d pts|r", rankLabels[1], tostring(snapshot.name), tonumber(snapshot.total) or 0)
+      return string.format("%s %s - |cFFFFD700%s pts|r", rankLabels[1], tostring(snapshot.name), LeafVE:FormatPointAmount(tonumber(snapshot.total) or 0))
     end
     return "|cFF888888No data available|r"
   end
@@ -10651,7 +14077,7 @@ function LeafVE:BuildWeeklyTopShinobisText(snapshot)
   for i = 1, math.min(5, table.getn(entries)) do
     local entry = entries[i]
     if type(entry) == "table" and entry.name and (tonumber(entry.total) or 0) > 0 then
-      table.insert(lines, string.format("%s %s - |cFFFFD700%d pts|r", rankLabels[i] or tostring(i), tostring(entry.name), tonumber(entry.total) or 0))
+      table.insert(lines, string.format("%s %s - |cFFFFD700%s pts|r", rankLabels[i] or tostring(i), tostring(entry.name), LeafVE:FormatPointAmount(tonumber(entry.total) or 0)))
     end
   end
 
@@ -10781,6 +14207,10 @@ end
 
 function LeafVE:ToggleUI()
   EnsureDB()
+  if not self:HasLeafAccess() then
+    Print("|cFFFF4444Access denied: Leaf Village Legends is restricted to approved village ranks.|r")
+    return
+  end
   
   if not LeafVE.UI or not LeafVE.UI.Build then 
     Print("ERROR: UI not loaded. Check addon file!") 
@@ -10808,6 +14238,60 @@ end
 -- UI SYSTEM - ALL TABS
 -------------------------------------------------
 LeafVE.UI = LeafVE.UI or { activeTab = "me" }
+
+function LeafVE.UI:GetUIScale()
+  EnsureDB()
+  return LeafVE:ClampUIScale((LeafVE_DB and LeafVE_DB.ui and LeafVE_DB.ui.scale) or LeafVE.uiDefaultScale)
+end
+
+function LeafVE.UI:IsFrameWithinMainUI(frame)
+  if not frame or not self.frame or not frame.GetParent then return false end
+  local parent = frame:GetParent()
+  while parent do
+    if parent == self.frame then
+      return true
+    end
+    if not parent.GetParent then
+      break
+    end
+    parent = parent:GetParent()
+  end
+  return false
+end
+
+function LeafVE.UI:ApplyPopupScale(frame)
+  if not frame or not frame.SetScale then return end
+  if self:IsFrameWithinMainUI(frame) then
+    frame:SetScale(1)
+  else
+    frame:SetScale(self:GetUIScale())
+  end
+end
+
+function LeafVE.UI:RefreshPopupScales()
+  local popupFields = {
+    "allBadgesFrame",
+    "achPopup",
+    "gearPopup",
+    "talentPopup",
+    "professionPopup",
+    "workOrderCrafterSignupPopup",
+    "workOrderPopup",
+    "guildBankPopup",
+    "loginBriefingPopup",
+  }
+
+  for i = 1, table.getn(popupFields) do
+    self:ApplyPopupScale(self[popupFields[i]])
+  end
+
+  if LeafVE and LeafVE.versionFrame then
+    self:ApplyPopupScale(LeafVE.versionFrame)
+  end
+  if LeafVE and LeafVE.toastFrame then
+    self:ApplyPopupScale(LeafVE.toastFrame)
+  end
+end
 
 -- C_Timer.After polyfill for WoW 1.12 (uses OnUpdate on a hidden frame)
 if not C_Timer_After then
@@ -10906,6 +14390,9 @@ function LeafVE:ShowVersionResults()
 
     f.scrollChild = scrollChild
     f.resultRows = {}
+    if LeafVE.UI and LeafVE.UI.ApplyPopupScale then
+      LeafVE.UI:ApplyPopupScale(f)
+    end
     LeafVE.versionFrame = f
   end
 
@@ -10927,11 +14414,11 @@ function LeafVE:ShowVersionResults()
     icon:SetPoint("LEFT", row, "LEFT", 4, 0)
     icon:SetWidth(20)
     if entry.status == "ok" or entry.status == "self" then
-      icon:SetText("|cFF00FF00✔|r")
+      icon:SetText("|cFF00FF00Ã¢Å“â€|r")
     elseif entry.status == "old" then
-      icon:SetText("|cFFFF4444✘|r")
+      icon:SetText("|cFFFF4444Ã¢Å“Ëœ|r")
     else
-      icon:SetText("|cFFAAAAAA⚠|r")
+      icon:SetText("|cFFAAAAAAÃ¢Å¡Â |r")
     end
 
     local nameFS = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -11032,15 +14519,12 @@ local ACHIEVEMENT_ICONS = {
 local function GetAchievementIcon(achId)
   if not achId then return LEAF_FALLBACK end
   
-  -- Check achievement addon metadata first
-  if LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta then
-    local meta = LeafVE_AchTest.GetAchievementMeta(achId)
-    if meta and meta.icon then
-      return meta.icon
-    end
+  local meta = LeafVE.GetAchievementMeta and LeafVE:GetAchievementMeta(achId)
+  if meta and meta.icon then
+    return meta.icon
   end
   
-  local lowerAchId = string.lower(achId)
+  local lowerAchId = string.lower(tostring(achId))
   
   -- Check the full ACHIEVEMENT_ICONS table
   if ACHIEVEMENT_ICONS[lowerAchId] then
@@ -11179,8 +14663,20 @@ local LEAFVE_GROUPED_NAV = {
       {tab = "leaderLife", label = "Lifetime", width = 68},
       {tab = "achievements", label = "Achievements", width = 92},
       {tab = "badges", label = "Badges", width = 66},
+      {tab = "titles", label = "Titles", width = 60},
       {tab = "roster", label = "Roster", width = 62},
       {tab = "shoutouts", label = "Shoutouts", width = 82},
+    },
+  },
+  {
+    key = "orders",
+    label = "Orders",
+    width = 70,
+    defaultTab = "workOrders",
+    subtabs = {
+      {tab = "workOrders", label = "Work Orders", width = 92},
+      {tab = "shinobiDuties", label = "Shinobi Duties", width = 98},
+      {tab = "workOrderRep", label = "Reputation", width = 84},
     },
   },
   {
@@ -11190,16 +14686,6 @@ local LEAFVE_GROUPED_NAV = {
     defaultTab = "guildEvents",
     subtabs = {
       {tab = "guildEvents", label = "Guild Events", width = 92},
-    },
-  },
-  {
-    key = "orders",
-    label = "Orders",
-    width = 70,
-    defaultTab = "workOrderRep",
-    subtabs = {
-      {tab = "workOrdersPopup", label = "Work Orders", width = 92},
-      {tab = "workOrderRep", label = "Reputation", width = 84},
     },
   },
   {
@@ -11223,9 +14709,12 @@ local LEAFVE_GROUPED_TAB_TO_CATEGORY = {
   leaderLife = "character",
   achievements = "character",
   badges = "character",
+  titles = "character",
   roster = "character",
   shoutouts = "character",
   guildEvents = "calendar",
+  workOrders = "orders",
+  shinobiDuties = "orders",
   workOrderRep = "orders",
   options = "options",
   history = "options",
@@ -11278,10 +14767,15 @@ function LeafVE.UI:HideLegacyMainTabs()
 end
 
 function LeafVE.UI:OpenWorkOrdersPopupFromNav()
-  local playerName = self.cardCurrentPlayer or ShortName(UnitName("player"))
-  if not playerName then
-    return
-  end
+  self:OpenWorkOrdersPanel()
+end
+
+function LeafVE.UI:GetActiveWorkOrderPlayerName()
+  return ShortName(self.workOrdersCurrentPlayer or self.cardCurrentPlayer or UnitName("player"))
+end
+
+function LeafVE.UI:OpenWorkOrdersPanel(viewMode, playerName)
+  local targetPlayer = ShortName(playerName or UnitName("player") or self.cardCurrentPlayer)
 
   if self.allBadgesFrame and self.allBadgesFrame:IsVisible() then
     self.allBadgesFrame:Hide()
@@ -11306,8 +14800,21 @@ function LeafVE.UI:OpenWorkOrdersPopupFromNav()
   if not self.workOrderPopup then
     self:CreateWorkOrderPopup()
   end
-  self:RefreshWorkOrderPopup(playerName)
-  self.workOrderPopup:Show()
+  if self.workOrderPopup and viewMode and viewMode ~= "" then
+    self.workOrderPopup.viewMode = viewMode
+  end
+
+  self.workOrdersCurrentPlayer = targetPlayer
+  if targetPlayer then
+    self.cardCurrentPlayer = targetPlayer
+  end
+  self.activeCategory = "orders"
+  self.activeNavSubTab = nil
+  self.activeTab = "workOrders"
+  if self.navLastTabByCategory then
+    self.navLastTabByCategory.orders = "workOrders"
+  end
+  self:Refresh()
 end
 
 function LeafVE.UI:BuildGroupedNavigation(parent)
@@ -11321,7 +14828,7 @@ function LeafVE.UI:BuildGroupedNavigation(parent)
     welcome = "welcome",
     character = "me",
     calendar = "guildEvents",
-    orders = "workOrderRep",
+    orders = "workOrders",
     options = "options",
   }
 
@@ -11368,14 +14875,6 @@ function LeafVE.UI:BuildGroupedNavigation(parent)
         targetTab = categoryConfig.defaultTab
       end
 
-      if targetTab == "workOrdersPopup" then
-        owner.activeTab = "workOrderRep"
-        owner.activeNavSubTab = "workOrdersPopup"
-        owner:Refresh()
-        owner:OpenWorkOrdersPopupFromNav()
-        return
-      end
-
       owner.activeTab = targetTab
       if owner.navLastTabByCategory then
         owner.navLastTabByCategory[categoryKey] = targetTab
@@ -11386,7 +14885,7 @@ function LeafVE.UI:BuildGroupedNavigation(parent)
     previousButton = btn
   end
 
-  for i = 1, 7 do
+  for i = 1, 8 do
     local btn = CreateWorkOrderModeButton(parent, "")
     btn:SetHeight(20)
     btn:SetWidth(80)
@@ -11406,17 +14905,9 @@ function LeafVE.UI:BuildGroupedNavigation(parent)
       end
 
       owner.activeCategory = categoryKey
-      if targetTab == "workOrdersPopup" then
-        owner.activeTab = "workOrderRep"
-        owner.activeNavSubTab = "workOrdersPopup"
-        owner:Refresh()
-        owner:OpenWorkOrdersPopupFromNav()
-        return
-      end
-
-      owner.activeTab = targetTab
-      owner.activeNavSubTab = nil
-      if owner.navLastTabByCategory then
+       owner.activeTab = targetTab
+       owner.activeNavSubTab = nil
+       if owner.navLastTabByCategory then
         owner.navLastTabByCategory[categoryKey] = targetTab
       end
       owner:Refresh()
@@ -11469,9 +14960,6 @@ function LeafVE.UI:RefreshGroupedNavigation(hasAccess)
   end
 
   local selectedSubtab = self.activeTab
-  if categoryKey == "orders" and self.activeNavSubTab == "workOrdersPopup" and self.workOrderPopup and self.workOrderPopup:IsVisible() then
-    selectedSubtab = "workOrdersPopup"
-  end
 
   local visibleSubtabs = self:GetGroupedNavVisibleSubtabs(categoryKey)
   if category.standalone or table.getn(visibleSubtabs) < 1 then
@@ -11509,15 +14997,55 @@ function LeafVE.UI:BuildPlayerCard(parent)
   c:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -10, 10)
   c:SetWidth(480)
 
+  local heroPanel = CreateFrame("Frame", nil, c)
+  heroPanel:SetPoint("TOPLEFT", c, "TOPLEFT", 10, -10)
+  heroPanel:SetPoint("TOPRIGHT", c, "TOPRIGHT", -10, -10)
+  heroPanel:SetHeight(280)
+  SkinPlayerCardSection(heroPanel, THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.85, 0.92)
+  self.cardHeroPanel = heroPanel
+
+  local heroAccent = heroPanel:CreateTexture(nil, "ARTWORK")
+  heroAccent:SetPoint("TOPLEFT", heroPanel, "TOPLEFT", 4, -4)
+  heroAccent:SetPoint("TOPRIGHT", heroPanel, "TOPRIGHT", -4, -4)
+  heroAccent:SetHeight(26)
+  heroAccent:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  heroAccent:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.22)
+  self.cardHeroAccent = heroAccent
+
+  local heroGlow = heroPanel:CreateTexture(nil, "BACKGROUND")
+  heroGlow:SetPoint("TOPLEFT", heroPanel, "TOPLEFT", 8, -32)
+  heroGlow:SetPoint("BOTTOMRIGHT", heroPanel, "BOTTOMRIGHT", -8, 8)
+  heroGlow:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  heroGlow:SetGradientAlpha("VERTICAL", 0.16, 0.18, 0.22, 0.4, 0.02, 0.03, 0.05, 0)
+  self.cardHeroGlow = heroGlow
+
+  local recentBadgesPanel = CreateFrame("Frame", nil, c)
+  recentBadgesPanel:SetPoint("TOPLEFT", heroPanel, "BOTTOMLEFT", 0, -8)
+  recentBadgesPanel:SetWidth(222)
+  recentBadgesPanel:SetHeight(300)
+  SkinPlayerCardSection(recentBadgesPanel, THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.55, 0.9)
+  AddPlayerCardPanelAccent(recentBadgesPanel, THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.18)
+  self.cardRecentBadgesPanel = recentBadgesPanel
+
+  local achievementsPanel = CreateFrame("Frame", nil, c)
+  achievementsPanel:SetPoint("TOPRIGHT", heroPanel, "BOTTOMRIGHT", 0, -8)
+  achievementsPanel:SetWidth(222)
+  achievementsPanel:SetHeight(300)
+  SkinPlayerCardSection(achievementsPanel, THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.55, 0.9)
+  AddPlayerCardPanelAccent(achievementsPanel, THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.18)
+  self.cardAchievementsPanel = achievementsPanel
+
   local title = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  title:SetPoint("TOPLEFT", c, "TOPLEFT", 10, -10)
-  title:SetText("Player Card")
-  title:SetTextColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3])
+  title:SetParent(heroPanel)
+  title:SetPoint("TOPLEFT", heroPanel, "TOPLEFT", 12, -10)
+  title:SetText("Shinobi Dossier")
+  StylePlayerCardHeading(title, 0.84, 0.86, 0.78)
+  self.cardTitle = title
 
   local portraitContainer = CreateFrame("Frame", nil, c)
-  portraitContainer:SetPoint("TOP", c, "TOP", 0, -40)
-  portraitContainer:SetWidth(180)
-  portraitContainer:SetHeight(180)
+  portraitContainer:SetPoint("TOP", specCycleBtn or heroPanel, "BOTTOM", 0, -10)
+  portraitContainer:SetWidth(148)
+  portraitContainer:SetHeight(148)
   portraitContainer:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -11548,21 +15076,21 @@ function LeafVE.UI:BuildPlayerCard(parent)
 
   local classIcon = classIconFrame:CreateTexture(nil, "ARTWORK")
   classIcon:SetPoint("CENTER", classIconFrame, "CENTER", 0, 0)
-  classIcon:SetWidth(130)
-  classIcon:SetHeight(130)
+  classIcon:SetWidth(108)
+  classIcon:SetHeight(108)
   classIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   self.cardClassIcon = classIcon
 
   local portraitTypeText = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  portraitTypeText:SetPoint("TOP", portraitContainer, "BOTTOM", 0, 2)
+  portraitTypeText:SetPoint("BOTTOM", portraitContainer, "BOTTOM", 0, 8)
   portraitTypeText:SetText("")
-  portraitTypeText:SetTextColor(0.7, 0.7, 0.7)
+  portraitTypeText:SetTextColor(0.93, 0.85, 0.45)
   self.cardPortraitTypeText = portraitTypeText
 
   local specCycleBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-  specCycleBtn:SetWidth(160)
+  specCycleBtn:SetWidth(132)
   specCycleBtn:SetHeight(20)
-  specCycleBtn:SetPoint("TOP", portraitTypeText, "BOTTOM", 0, -2)
+  specCycleBtn:SetPoint("TOP", infoFS or heroPanel, "BOTTOM", 0, -4)
   specCycleBtn:SetText("Spec: -")
   SkinButtonAccent(specCycleBtn)
   specCycleBtn:SetScript("OnClick", function()
@@ -11580,44 +15108,117 @@ function LeafVE.UI:BuildPlayerCard(parent)
   self.cardSpecCycleBtn = specCycleBtn
 
   local nameFS = c:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-  nameFS:SetPoint("TOP", specCycleBtn, "BOTTOM", 0, -8)
-  nameFS:SetWidth(430)
+  local honorificFS = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  honorificFS:SetParent(heroPanel)
+  honorificFS:SetPoint("TOP", heroPanel, "TOP", 0, 8)
+  honorificFS:SetWidth(360)
+  honorificFS:SetJustifyH("CENTER")
+  honorificFS:SetText("")
+  if honorificFS.SetShadowOffset then
+    honorificFS:SetShadowOffset(1, -1)
+  end
+  if honorificFS.SetShadowColor then
+    honorificFS:SetShadowColor(0, 0, 0, 1)
+  end
+  if honorificFS.SetDrawLayer then
+    honorificFS:SetDrawLayer("OVERLAY", 7)
+  end
+  honorificFS:Hide()
+  self.cardHonorificText = honorificFS
+
+  nameFS:SetParent(heroPanel)
+  nameFS:SetPoint("TOP", honorificFS, "BOTTOM", 0, -2)
+  nameFS:SetWidth(380)
   nameFS:SetJustifyH("CENTER")
   nameFS:SetText("-")
+  if nameFS.SetShadowOffset then
+    nameFS:SetShadowOffset(1, -1)
+  end
+  if nameFS.SetShadowColor then
+    nameFS:SetShadowColor(0, 0, 0, 1)
+  end
+  if nameFS.SetDrawLayer then
+    nameFS:SetDrawLayer("OVERLAY", 7)
+  end
   self.cardName = nameFS
 
   local infoFS = c:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  infoFS:SetPoint("TOP", nameFS, "BOTTOM", 0, -5)
-  infoFS:SetWidth(430)
+  infoFS:SetParent(heroPanel)
+  infoFS:SetPoint("TOP", nameFS, "BOTTOM", 0, -2)
+  infoFS:SetWidth(320)
   infoFS:SetJustifyH("CENTER")
+  infoFS:SetTextColor(0.86, 0.88, 0.93)
   infoFS:SetText("")
+  if infoFS.SetShadowOffset then
+    infoFS:SetShadowOffset(1, -1)
+  end
+  if infoFS.SetShadowColor then
+    infoFS:SetShadowColor(0, 0, 0, 1)
+  end
+  if infoFS.SetDrawLayer then
+    infoFS:SetDrawLayer("OVERLAY", 7)
+  end
   self.cardClassLevelRank = infoFS
+
+  local topSpecText = heroPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  topSpecText:SetPoint("TOP", infoFS, "BOTTOM", 0, -2)
+  topSpecText:SetWidth(220)
+  topSpecText:SetJustifyH("CENTER")
+  topSpecText:SetText("")
+  topSpecText:SetTextColor(0.93, 0.85, 0.45)
+  if topSpecText.SetShadowOffset then
+    topSpecText:SetShadowOffset(1, -1)
+  end
+  if topSpecText.SetShadowColor then
+    topSpecText:SetShadowColor(0, 0, 0, 1)
+  end
+  if topSpecText.SetDrawLayer then
+    topSpecText:SetDrawLayer("OVERLAY", 7)
+  end
+  topSpecText:Hide()
+  self.cardTopSpecText = topSpecText
+
+  specCycleBtn:ClearAllPoints()
+  specCycleBtn:SetPoint("TOP", topSpecText, "BOTTOM", 0, -4)
+  portraitContainer:ClearAllPoints()
+  portraitContainer:SetPoint("TOP", specCycleBtn, "BOTTOM", 0, -10)
 
 -- Recent Badges Section (LEFT SIDE)
 local recentBadgesLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-recentBadgesLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 10, -300)
+recentBadgesLabel:SetParent(recentBadgesPanel)
+recentBadgesLabel:SetPoint("TOPLEFT", recentBadgesPanel, "TOPLEFT", 12, -8)
 recentBadgesLabel:SetText("|cFFFFD700Recent Badges|r")
+StylePlayerCardHeading(recentBadgesLabel, THEME.gold[1], THEME.gold[2], THEME.gold[3])
 
-local recentBadgesFrame = CreateFrame("Frame", nil, c)
-recentBadgesFrame:SetPoint("TOPLEFT", recentBadgesLabel, "BOTTOMLEFT", 0, -10)
-recentBadgesFrame:SetWidth(210)
-recentBadgesFrame:SetHeight(145)
+local recentBadgesSummary = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+recentBadgesSummary:SetParent(recentBadgesPanel)
+recentBadgesSummary:SetPoint("TOPLEFT", recentBadgesPanel, "TOPLEFT", 12, -28)
+recentBadgesSummary:SetWidth(196)
+recentBadgesSummary:SetJustifyH("LEFT")
+recentBadgesSummary:SetTextColor(0.74, 0.76, 0.82)
+recentBadgesSummary:SetText("Latest honors and locked goals")
+self.cardRecentBadgesSummary = recentBadgesSummary
+
+local recentBadgesFrame = CreateFrame("Frame", nil, recentBadgesPanel)
+recentBadgesFrame:SetPoint("TOPLEFT", recentBadgesSummary, "BOTTOMLEFT", 0, -8)
+recentBadgesFrame:SetWidth(196)
+recentBadgesFrame:SetHeight(164)
 self.cardRecentBadgesFrame = recentBadgesFrame
 
 self.cardRecentBadgeFrames = {}
 
-local cardButtonWidth = 176
-local cardButtonMiddleWidth = 140
-local cardButtonHeight = 22
-local cardButtonGapY = 5
+local cardButtonWidth = 196
+local cardButtonMiddleWidth = 150
+local cardButtonHeight = 24
+local cardButtonGapY = 6
 local cardButtonFontSize = 10
-local cardButtonOffsetX = -8
+local cardButtonOffsetX = 0
 
 -- View All Badges Button
 local viewAllBadgesBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
 viewAllBadgesBtn:SetWidth(cardButtonWidth)
 viewAllBadgesBtn:SetHeight(cardButtonHeight)
-viewAllBadgesBtn:SetPoint("TOPLEFT", recentBadgesFrame, "BOTTOMLEFT", cardButtonOffsetX, -4)
+viewAllBadgesBtn:SetPoint("BOTTOMLEFT", recentBadgesPanel, "BOTTOMLEFT", 12, 80)
 viewAllBadgesBtn:SetText("View All Badges")
 if viewAllBadgesBtn.GetFontString and viewAllBadgesBtn:GetFontString() and viewAllBadgesBtn:GetFontString().SetFont then
   viewAllBadgesBtn:GetFontString():SetFont(STANDARD_TEXT_FONT, cardButtonFontSize, "")
@@ -11660,7 +15261,7 @@ self.viewAllBadgesBtn = viewAllBadgesBtn
 local gearBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
 gearBtn:SetWidth(cardButtonWidth)
 gearBtn:SetHeight(cardButtonHeight)
-gearBtn:SetPoint("TOPLEFT", viewAllBadgesBtn, "BOTTOMLEFT", 0, -cardButtonGapY)
+gearBtn:SetPoint("BOTTOMLEFT", recentBadgesPanel, "BOTTOMLEFT", 12, 46)
 gearBtn:SetText("Gear")
 if gearBtn.GetFontString and gearBtn:GetFontString() and gearBtn:GetFontString().SetFont then
   gearBtn:GetFontString():SetFont(STANDARD_TEXT_FONT, cardButtonFontSize, "")
@@ -11703,32 +15304,54 @@ self.cardGearBtn = gearBtn
 
 -- Achievements Section
   local achLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  achLabel:SetPoint("TOPRIGHT", c, "TOPRIGHT", -40, -300)
+  achLabel:SetParent(achievementsPanel)
+  achLabel:SetPoint("TOPLEFT", achievementsPanel, "TOPLEFT", 12, -8)
   achLabel:SetText("|cFFFFD700Achievements|r")
+  StylePlayerCardHeading(achLabel, THEME.leaf[1], THEME.leaf[2], THEME.leaf[3])
   
   local achPointsText = c:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  achPointsText:SetPoint("TOP", achLabel, "BOTTOM", 0, -5)  -- stays relative to achLabel
-  achPointsText:SetWidth(210)
-  achPointsText:SetJustifyH("CENTER")
+  achPointsText:SetParent(achievementsPanel)
+  achPointsText:SetPoint("TOPLEFT", achievementsPanel, "TOPLEFT", 12, -28)
+  achPointsText:SetWidth(196)
+  achPointsText:SetJustifyH("LEFT")
   achPointsText:SetText("0 Points")
   self.cardAchPoints = achPointsText
+
+  local achSummaryText = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  achSummaryText:SetParent(achievementsPanel)
+  achSummaryText:SetPoint("TOPLEFT", achPointsText, "BOTTOMLEFT", 0, -4)
+  achSummaryText:SetWidth(196)
+  achSummaryText:SetJustifyH("LEFT")
+  achSummaryText:SetTextColor(0.74, 0.79, 0.84)
+  achSummaryText:SetText("Built-in client and synced progress")
+  self.cardAchSummary = achSummaryText
   
   local recentLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  recentLabel:SetPoint("TOP", achPointsText, "BOTTOM", -0, -8)
-  recentLabel:SetText("|cFFAAAAFFRecent Achievements|r")
+  recentLabel:SetParent(achievementsPanel)
+  recentLabel:SetPoint("TOPLEFT", achSummaryText, "BOTTOMLEFT", 0, -8)
+  recentLabel:SetText("|cFF9BC2FFRecent Achievements|r")
   
   -- Recent achievements frame
-  local recentFrame = CreateFrame("Frame", nil, c)
-  recentFrame:SetPoint("TOP", recentLabel, "BOTTOM", 27, -7)
-  recentFrame:SetWidth(230)
+  local recentFrame = CreateFrame("Frame", nil, achievementsPanel)
+  recentFrame:SetPoint("TOPLEFT", recentLabel, "BOTTOMLEFT", 0, -8)
+  recentFrame:SetWidth(196)
   recentFrame:SetHeight(22)
   self.cardRecentAchFrame = recentFrame
+
+  local recentEmptyText = recentFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  recentEmptyText:SetPoint("TOP", recentFrame, "TOP", 0, -12)
+  recentEmptyText:SetWidth(176)
+  recentEmptyText:SetJustifyH("CENTER")
+  recentEmptyText:SetTextColor(0.56, 0.58, 0.64)
+  recentEmptyText:SetText("No achievements recorded yet.")
+  recentEmptyText:Hide()
+  self.cardRecentAchEmptyText = recentEmptyText
   
   self.cardRecentAchEntries = {}
   
   -- View All button
 local viewAllBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-  viewAllBtn:SetPoint("TOPLEFT", recentFrame, "BOTTOMLEFT", cardButtonOffsetX, -4)
+  viewAllBtn:SetPoint("BOTTOMLEFT", achievementsPanel, "BOTTOMLEFT", 12, 80)
   viewAllBtn:SetWidth(cardButtonWidth)
   viewAllBtn:SetHeight(cardButtonHeight)
   viewAllBtn:SetText("View All Achievements")
@@ -11774,7 +15397,7 @@ end)
   self.cardViewAllBtn = viewAllBtn
 
   local talentBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
-  talentBtn:SetPoint("TOPLEFT", viewAllBtn, "BOTTOMLEFT", 0, -cardButtonGapY)
+  talentBtn:SetPoint("BOTTOMLEFT", achievementsPanel, "BOTTOMLEFT", 12, 46)
   talentBtn:SetWidth(cardButtonWidth)
   talentBtn:SetHeight(cardButtonHeight)
   talentBtn:SetText("Talent Spec: -")
@@ -11828,8 +15451,8 @@ end)
   local professionBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
   professionBtn:SetWidth(cardButtonWidth)
   professionBtn:SetHeight(cardButtonHeight)
-  professionBtn:SetPoint("TOPLEFT", gearBtn, "BOTTOMLEFT", 0, -cardButtonGapY)
-  professionBtn:SetText("Designations")
+  professionBtn:SetPoint("BOTTOMLEFT", recentBadgesPanel, "BOTTOMLEFT", 12, 12)
+  professionBtn:SetText("Professions")
   if professionBtn.GetFontString and professionBtn:GetFontString() and professionBtn:GetFontString().SetFont then
     professionBtn:GetFontString():SetFont(STANDARD_TEXT_FONT, cardButtonFontSize, "")
   end
@@ -11873,8 +15496,7 @@ end)
   local workOrderBtn = CreateFrame("Button", nil, c, "UIPanelButtonTemplate")
   workOrderBtn:SetWidth(cardButtonWidth)
   workOrderBtn:SetHeight(cardButtonHeight)
-  workOrderBtn:SetPoint("TOPLEFT", talentBtn, "BOTTOMLEFT", 0, -cardButtonGapY)
-  workOrderBtn:SetPoint("LEFT", professionBtn, "RIGHT", 16, 0)
+  workOrderBtn:SetPoint("BOTTOMLEFT", achievementsPanel, "BOTTOMLEFT", 12, 12)
   workOrderBtn:SetText("Work Orders")
   if workOrderBtn.GetFontString and workOrderBtn:GetFontString() and workOrderBtn:GetFontString().SetFont then
     workOrderBtn:GetFontString():SetFont(STANDARD_TEXT_FONT, cardButtonFontSize, "")
@@ -11903,28 +15525,19 @@ end)
       LeafVE.UI.guildBankPopup:Hide()
     end
     LeafVE.UI:HideNativeTalentFrame()
-
-    if not LeafVE.UI.workOrderPopup then
-      LeafVE.UI:CreateWorkOrderPopup()
-    end
-    if LeafVE.UI.workOrderPopup:IsVisible() then
-      LeafVE.UI.workOrderPopup:Hide()
-    else
-      LeafVE.UI:RefreshWorkOrderPopup(LeafVE.UI.cardCurrentPlayer)
-      LeafVE.UI.workOrderPopup:Show()
-    end
+    LeafVE.UI:OpenWorkOrdersPanel(nil, LeafVE.UI.cardCurrentPlayer)
   end)
   self.cardWorkOrderBtn = workOrderBtn
 
    -- Player Note (matching Wisdom of the Leaf style)
   local notesLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  notesLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 20, -70)  -- ← MOVED UP (was -100)
+  notesLabel:SetPoint("TOPLEFT", c, "TOPLEFT", 20, -70)  -- Ã¢â€ Â MOVED UP (was -100)
   notesLabel:SetText("|cFFFFD700Player Note|r")
 
   local notesBox = CreateFrame("Frame", nil, c)
   notesBox:SetPoint("TOPLEFT", notesLabel, "BOTTOMLEFT", 0, -5)
-  notesBox:SetWidth(125)  -- ← NARROWER (was 210)
-  notesBox:SetHeight(105)  -- ← MATCHES quote height
+  notesBox:SetWidth(125)  -- Ã¢â€ Â NARROWER (was 210)
+  notesBox:SetHeight(105)  -- Ã¢â€ Â MATCHES quote height
   notesBox:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -11936,8 +15549,8 @@ end)
 
   local notesEditBox = CreateFrame("EditBox", nil, notesBox)
   notesEditBox:SetPoint("TOPLEFT", notesBox, "TOPLEFT", 8, -8)
-  notesEditBox:SetWidth(110)  -- ← NARROWER (was 210)
-  notesEditBox:SetHeight(65)  -- ← ADJUSTED for space
+  notesEditBox:SetWidth(110)  -- Ã¢â€ Â NARROWER (was 210)
+  notesEditBox:SetHeight(65)  -- Ã¢â€ Â ADJUSTED for space
   notesEditBox:SetMultiLine(true)
   notesEditBox:SetAutoFocus(false)
   notesEditBox:SetFontObject(GameFontHighlightSmall)
@@ -11952,7 +15565,7 @@ end)
   
   -- Save button (positioned at bottom like Kakashi attribution)
   local saveNoteBtn = CreateFrame("Button", nil, notesBox, "UIPanelButtonTemplate")
-  saveNoteBtn:SetPoint("BOTTOM", notesBox, "BOTTOM", 0, 8)  -- ← BOTTOM ALIGNED
+  saveNoteBtn:SetPoint("BOTTOM", notesBox, "BOTTOM", 0, 8)  -- Ã¢â€ Â BOTTOM ALIGNED
   saveNoteBtn:SetWidth(100)
   saveNoteBtn:SetHeight(20)
   saveNoteBtn:SetText("Save Note")
@@ -11989,9 +15602,27 @@ end)
   
   self.cardSaveNoteBtn = saveNoteBtn
 
+  notesBox:ClearAllPoints()
+  notesBox:SetPoint("TOPLEFT", heroPanel, "TOPLEFT", 16, -106)
+  notesLabel:SetParent(notesBox)
+  notesLabel:ClearAllPoints()
+  notesLabel:SetPoint("TOPLEFT", notesBox, "TOPLEFT", 10, -8)
+  StylePlayerCardHeading(notesLabel, THEME.gold[1], THEME.gold[2], THEME.gold[3])
+  notesBox:SetWidth(136)
+  notesBox:SetHeight(114)
+  SkinPlayerCardSection(notesBox, THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.65, 0.9)
+  AddPlayerCardPanelAccent(notesBox, THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.16)
+  notesEditBox:ClearAllPoints()
+  notesEditBox:SetPoint("TOPLEFT", notesBox, "TOPLEFT", 8, -26)
+  notesEditBox:SetWidth(120)
+  notesEditBox:SetHeight(54)
+  saveNoteBtn:ClearAllPoints()
+  saveNoteBtn:SetPoint("BOTTOM", notesBox, "BOTTOM", 0, 9)
+  saveNoteBtn:SetWidth(108)
+
   -- Kakashi Quote (parallel to Player Note, right side - COMPACT)
   local quoteLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  quoteLabel:SetPoint("TOPRIGHT", c, "TOPRIGHT", -15, -70)  -- ← MOVED UP (was -100)
+  quoteLabel:SetPoint("TOPRIGHT", c, "TOPRIGHT", -15, -70)  -- Ã¢â€ Â MOVED UP (was -100)
   quoteLabel:SetText("|cFF2DD35CWisdom of the Leaf|r")
   
   local quoteBox = CreateFrame("Frame", nil, c)
@@ -12017,27 +15648,56 @@ end)
   attribution:SetPoint("BOTTOM", quoteBox, "BOTTOM", 0, 15)
   attribution:SetText("|cFF2DD35C- Kakashi Hatake|r")
 
+  quoteBox:ClearAllPoints()
+  quoteBox:SetPoint("TOPRIGHT", heroPanel, "TOPRIGHT", -16, -106)
+  quoteLabel:SetParent(quoteBox)
+  quoteLabel:ClearAllPoints()
+  quoteLabel:SetPoint("TOPRIGHT", quoteBox, "TOPRIGHT", -10, -8)
+  StylePlayerCardHeading(quoteLabel, THEME.leaf[1], THEME.leaf[2], THEME.leaf[3])
+  quoteBox:SetWidth(136)
+  quoteBox:SetHeight(114)
+  SkinPlayerCardSection(quoteBox, THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.65, 0.9)
+  AddPlayerCardPanelAccent(quoteBox, THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.16)
+  quoteText:ClearAllPoints()
+  quoteText:SetPoint("TOP", quoteBox, "TOP", 0, -28)
+  quoteText:SetWidth(118)
+  attribution:ClearAllPoints()
+  attribution:SetPoint("BOTTOM", quoteBox, "BOTTOM", 0, 11)
+
+  local statusPanel = CreateFrame("Frame", nil, heroPanel)
+  statusPanel:SetPoint("TOPLEFT", notesBox, "BOTTOMLEFT", 0, -10)
+  statusPanel:SetPoint("TOPRIGHT", quoteBox, "BOTTOMRIGHT", 0, -10)
+  statusPanel:SetHeight(34)
+  SkinPlayerCardSection(statusPanel, THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.7, 0.88)
+  self.cardStatusAccent = AddPlayerCardPanelAccent(statusPanel, THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.14)
+  self.cardStatusPanel = statusPanel
+
   -- Leaf Village emblem and center badge anchor.
   local leafGlow = c:CreateTexture(nil, "BACKGROUND")
-  leafGlow:SetWidth(128)
-  leafGlow:SetHeight(128)
-  leafGlow:SetPoint("CENTER", c, "CENTER", 0, -380)
+  leafGlow:SetWidth(88)
+  leafGlow:SetHeight(88)
+  leafGlow:SetPoint("CENTER", statusPanel, "TOP", 0, -18)
   leafGlow:SetTexture("Interface\\GLUES\\Models\\UI_Draenei\\GenericGlow64")
   leafGlow:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1.0)
   leafGlow:SetBlendMode("ADD")
+  leafGlow:Hide()
 
   local leafEmblem = c:CreateTexture(nil, "ARTWORK")
-  leafEmblem:SetWidth(48)
-  leafEmblem:SetHeight(48)
-  leafEmblem:SetPoint("CENTER", c, "CENTER", 0, -125)
+  leafEmblem:SetWidth(40)
+  leafEmblem:SetHeight(40)
+  leafEmblem:SetPoint("TOP", statusPanel, "TOP", 0, -8)
   leafEmblem:SetTexture(LEAF_EMBLEM)
   leafEmblem:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.8)
+  leafEmblem:Hide()
   self.cardLeafEmblem = leafEmblem
 
   local leafLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  leafLabel:SetPoint("TOP", leafEmblem, "BOTTOM", 0, -2)
-  leafLabel:SetText("Leaf Village")
+  leafLabel:SetPoint("TOP", leafEmblem, "BOTTOM", 0, -1)
+  leafLabel:SetText("Village Honors")
   leafLabel:SetTextColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3])
+  if leafLabel.Hide then
+    leafLabel:Hide()
+  end
   self.cardLeafLabel = leafLabel
 
   self.cardWorkOrderRepBadge = CreateFrame("Button", nil, c)
@@ -12237,6 +15897,9 @@ function LeafVE.UI:ShowAllBadgesPanel(playerName)
     f.scrollFrame = scrollFrame
     f.content = content
     
+    if self.ApplyPopupScale then
+      self:ApplyPopupScale(f)
+    end
     self.allBadgesFrame = f
   end
 local f = self.allBadgesFrame
@@ -12476,6 +16139,17 @@ function LeafVE.UI:UpdateCardRecentBadges(playerName)
   table.sort(earnedBadges, function(a, b)
     return a.earnedAt > b.earnedAt
   end)
+
+  if self.cardRecentBadgesSummary then
+    local earnedCount = table.getn(earnedBadges)
+    if earnedCount > 0 then
+      self.cardRecentBadgesSummary:SetText(string.format("%d total earned badge%s", earnedCount, earnedCount == 1 and "" or "s"))
+      self.cardRecentBadgesSummary:SetTextColor(0.78, 0.8, 0.86)
+    else
+      self.cardRecentBadgesSummary:SetText("No badges earned yet")
+      self.cardRecentBadgesSummary:SetTextColor(0.58, 0.6, 0.66)
+    end
+  end
   
   -- Take top 9 earned badges
   local topEarned = {}
@@ -12513,12 +16187,12 @@ function LeafVE.UI:UpdateCardRecentBadges(playerName)
   end
   
   -- Display all 9 badges (earned + locked)
-  local badgeSize = 45
-  local xSpacing = 50
+  local badgeSize = 46
+  local xSpacing = 58
   local ySpacing = 50
   local perRow = 3
   
-  for i = 1, 9 do  -- ← CHANGE FROM 6 TO 9
+  for i = 1, 9 do  -- Ã¢â€ Â CHANGE FROM 6 TO 9
     local badge = topEarned[i]
     local frame = self.cardRecentBadgeFrames[i]
     
@@ -12527,9 +16201,11 @@ function LeafVE.UI:UpdateCardRecentBadges(playerName)
       frame:SetWidth(badgeSize)
       frame:SetHeight(badgeSize)
       frame:EnableMouse(true)
+      SkinPlayerCardSection(frame, THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.8, 0.96)
       
       local icon = frame:CreateTexture(nil, "ARTWORK")
-      icon:SetAllPoints(frame)
+      icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -4)
+      icon:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -4, 4)
       frame.icon = icon
       
       table.insert(self.cardRecentBadgeFrames, frame)
@@ -12540,7 +16216,7 @@ function LeafVE.UI:UpdateCardRecentBadges(playerName)
     local col = (i - 1) % perRow
     
     frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", self.cardRecentBadgesFrame, "TOPLEFT", col * xSpacing, -row * ySpacing)
+    frame:SetPoint("TOPLEFT", self.cardRecentBadgesFrame, "TOPLEFT", 8 + (col * xSpacing), -row * ySpacing)
     
     if badge then
       -- Set icon
@@ -12551,9 +16227,14 @@ function LeafVE.UI:UpdateCardRecentBadges(playerName)
       
       -- Style: earned = full color, locked = greyed out
       if badge.earned then
+        local br, bg, bb = GetBadgeQualityColor(badge.quality or BADGE_QUALITY.COMMON)
+        frame:SetBackdropColor(0.08, 0.09, 0.12, 0.96)
+        frame:SetBackdropBorderColor(br, bg, bb, 0.95)
         frame.icon:SetVertexColor(1, 1, 1, 1)
         frame.icon:SetDesaturated(nil)
       else
+        frame:SetBackdropColor(0.05, 0.06, 0.08, 0.9)
+        frame:SetBackdropBorderColor(0.28, 0.3, 0.34, 0.85)
         frame.icon:SetVertexColor(0.4, 0.4, 0.4, 0.7)
         if frame.icon.SetDesaturated then
           frame.icon:SetDesaturated(true)
@@ -12590,6 +16271,8 @@ function LeafVE.UI:UpdateCardRecentBadges(playerName)
       end)
     else
       -- Empty slot
+      frame:SetBackdropColor(0.05, 0.06, 0.08, 0.85)
+      frame:SetBackdropBorderColor(0.22, 0.24, 0.28, 0.75)
       frame.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
       frame.icon:SetVertexColor(0.3, 0.3, 0.3, 0.5)
       if frame.icon.SetDesaturated then
@@ -12642,14 +16325,37 @@ function LeafVE.UI:ShowPlayerCard(playerName)
     -- Keep the card lightweight in crowded areas; detailed gear/talent pulls
     -- happen when the dedicated popups are opened.
     LeafVE:RequestProfessionDesignation(playerName)
+    LeafVE:RequestPlayerTitle(playerName)
   else
     LeafVE:CaptureAndCacheMyGear()
     LeafVE:CaptureAndCacheMyTalents(false)
   end
 
   local classColor = CLASS_COLORS[class] or {1, 1, 1}
-  self.cardName:SetTextColor(classColor[1], classColor[2], classColor[3])
-  self.cardClassLevelRank:SetText(string.format("Lvl %s %s\n%s", tostring(level), class, rank))
+  self.cardName:ClearAllPoints()
+  if self.cardHonorificText then
+    self.cardHonorificText:SetText("")
+    self.cardHonorificText:Hide()
+  end
+  self.cardName:SetPoint("TOP", self.cardHeroPanel or self.card, "TOP", 0, 8)
+  self.cardName:SetText(LeafVE:BuildPlayerCardNameMarkup(playerName, class))
+  self.cardName:SetTextColor(1, 1, 1)
+  self.cardClassLevelRank:SetText(string.format("|cFF%sLevel %s %s|r\n|cFFFFD700%s|r", RGBToHex(classColor[1], classColor[2], classColor[3]), tostring(level), class, rank))
+  if self.cardHeroAccent then
+    self.cardHeroAccent:SetVertexColor(classColor[1], classColor[2], classColor[3], 0.24)
+  end
+  if self.cardHeroGlow then
+    self.cardHeroGlow:SetGradientAlpha("VERTICAL", classColor[1], classColor[2], classColor[3], 0.22, 0.02, 0.03, 0.05, 0)
+  end
+  if self.cardPortraitContainer then
+    self.cardPortraitContainer:SetBackdropBorderColor(classColor[1], classColor[2], classColor[3], 0.95)
+  end
+  if self.cardStatusPanel then
+    self.cardStatusPanel:SetBackdropBorderColor(classColor[1], classColor[2], classColor[3], 0.45)
+  end
+  if self.cardStatusAccent then
+    self.cardStatusAccent:SetVertexColor(classColor[1], classColor[2], classColor[3], 0.14)
+  end
 
   if self.cardWorkOrderRepBadgeText then
     local repEntry = LeafVE:GetWorkOrderReputationForPlayer(playerName)
@@ -12663,6 +16369,7 @@ function LeafVE.UI:ShowPlayerCard(playerName)
       self.cardWorkOrderRepBadgeIcon:SetVertexColor(repColor[1], repColor[2], repColor[3], 1)
     end
     if self.cardWorkOrderRepBadge then
+      self.cardWorkOrderRepBadge:SetBackdropColor(repColor[1] * 0.16, repColor[2] * 0.16, repColor[3] * 0.16, 0.92)
       self.cardWorkOrderRepBadge:SetBackdropBorderColor(repColor[1], repColor[2], repColor[3], 0.85)
     end
   end
@@ -12676,6 +16383,7 @@ function LeafVE.UI:ShowPlayerCard(playerName)
         self.cardWorkOrderCrafterRankBadgeIcon:SetTexture("Interface\\Icons\\INV_Crown_01")
         self.cardWorkOrderCrafterRankBadgeIcon:SetVertexColor(rr, rg, rb, 1)
       end
+      self.cardWorkOrderCrafterRankBadge:SetBackdropColor(rr * 0.15, rg * 0.15, rb * 0.15, 0.92)
       self.cardWorkOrderCrafterRankBadge:SetBackdropBorderColor(rr, rg, rb, 0.85)
       self.cardWorkOrderCrafterRankBadge:Show()
     else
@@ -12687,18 +16395,12 @@ function LeafVE.UI:ShowPlayerCard(playerName)
     local weeklyRankLabel = GetWeeklyCharacterRankLabel(weeklyRank)
     if weeklyRankLabel then
       local wr, wg, wb = GetWeeklyCharacterRankColor(weeklyRank)
-      local anchorFrame = self.cardWorkOrderRepBadge
-      if self.cardWorkOrderCrafterRankBadge and self.cardWorkOrderCrafterRankBadge:IsShown() then
-        anchorFrame = self.cardWorkOrderCrafterRankBadge
-      end
-
-      self.cardWeeklyCharacterRankBadge:ClearAllPoints()
-      self.cardWeeklyCharacterRankBadge:SetPoint("TOP", anchorFrame, "BOTTOM", 0, -4)
       self.cardWeeklyCharacterRankBadgeText:SetText("|cFFFFD700" .. weeklyRankLabel .. "|r")
       if self.cardWeeklyCharacterRankBadgeIcon then
         self.cardWeeklyCharacterRankBadgeIcon:SetTexture(PVP_RANK_ICONS[weeklyRank] or "Interface\\Icons\\INV_Misc_Horn_03")
         self.cardWeeklyCharacterRankBadgeIcon:SetVertexColor(wr, wg, wb, 1)
       end
+      self.cardWeeklyCharacterRankBadge:SetBackdropColor(wr * 0.15, wg * 0.15, wb * 0.15, 0.92)
       self.cardWeeklyCharacterRankBadge:SetBackdropBorderColor(wr, wg, wb, 0.85)
       self.cardWeeklyCharacterRankBadge:Show()
     else
@@ -12713,6 +16415,7 @@ function LeafVE.UI:ShowPlayerCard(playerName)
   end
   local specSnapshot = LeafVE:GetSpecSnapshotForPlayer(playerName, class)
   local talentSnapshot = LeafVE:GetTalentSpecForPlayer(playerName, class)
+  local talentName = (talentSnapshot and talentSnapshot.name) or (specSnapshot and specSnapshot.name) or class
   
   if useModel then
     local modelOk = pcall(function()
@@ -12761,16 +16464,39 @@ function LeafVE.UI:ShowPlayerCard(playerName)
   if self.cardSpecCycleBtn then
     if isSelf then
       self.cardSpecCycleBtn:SetText("Spec: " .. ((specSnapshot and specSnapshot.name) or class))
+      self.cardSpecCycleBtn:ClearAllPoints()
+      self.cardSpecCycleBtn:SetPoint("TOP", self.cardClassLevelRank, "BOTTOM", 0, -4)
       self.cardSpecCycleBtn:Show()
       self.cardSpecCycleBtn:Enable()
     else
+      self.cardSpecCycleBtn:ClearAllPoints()
+      self.cardSpecCycleBtn:SetPoint("TOP", self.cardTopSpecText or self.cardClassLevelRank, "BOTTOM", 0, -4)
       self.cardSpecCycleBtn:Hide()
       self.cardSpecCycleBtn:Disable()
     end
   end
 
+  if self.cardTopSpecText then
+    if isSelf then
+      self.cardTopSpecText:Hide()
+    else
+      self.cardTopSpecText:SetText("|cFFFFD700Spec:|r " .. tostring(talentName))
+      self.cardTopSpecText:Show()
+    end
+  end
+
+  if self.cardPortraitContainer then
+    self.cardPortraitContainer:ClearAllPoints()
+    if isSelf and self.cardSpecCycleBtn and self.cardSpecCycleBtn:IsShown() then
+      self.cardPortraitContainer:SetPoint("TOP", self.cardSpecCycleBtn, "BOTTOM", 0, -10)
+    elseif self.cardTopSpecText and self.cardTopSpecText:IsShown() then
+      self.cardPortraitContainer:SetPoint("TOP", self.cardTopSpecText, "BOTTOM", 0, -10)
+    else
+      self.cardPortraitContainer:SetPoint("TOP", self.cardClassLevelRank, "BOTTOM", 0, -10)
+    end
+  end
+
   if self.cardTalentBtn then
-    local talentName = (talentSnapshot and talentSnapshot.name) or (specSnapshot and specSnapshot.name) or class
     self.cardTalentBtn:SetText("Talent Spec: " .. tostring(talentName))
     self.cardTalentBtn:Show()
     self.cardTalentBtn:Enable()
@@ -12784,6 +16510,7 @@ function LeafVE.UI:ShowPlayerCard(playerName)
     self.cardProfessionBtn:Show()
     self.cardProfessionBtn:Enable()
   end
+  LayoutPlayerCardStatusBadges(self)
 
   if self.talentPopup and self.talentPopup:IsVisible() then
     self:RefreshTalentPopup(playerName, true)
@@ -12840,27 +16567,24 @@ function LeafVE.UI:ShowPlayerCard(playerName)
     end
   end
 
-    -- Update achievement points display using API
+    -- Update achievement points display from the built-in client data or synced cache
   
-  local achPoints = 0
-  if LeafVE_AchTest then
-    if LeafVE_AchTest.API then
-      if LeafVE_AchTest.API.GetPlayerPoints then
-        -- FIX: Pass playerName instead of assuming it's the local player
-        achPoints = LeafVE_AchTest.API.GetPlayerPoints(playerName)
-      end
-    end
-  end
+  local achPoints = LeafVE:GetAchievementPointsForPlayer(playerName)
   
   if self.cardAchPoints then
     self.cardAchPoints:SetText(string.format("|cFFFFD700%d|r Points", achPoints))
   end
   
-  -- Get recent achievements using API
-  local recentAch = {}
-  if LeafVE_AchTest and LeafVE_AchTest.API and LeafVE_AchTest.API.GetRecentAchievements then
-    -- FIX: Pass playerName instead of assuming local player
-    recentAch = LeafVE_AchTest.API.GetRecentAchievements(playerName, 5)
+  -- Get recent achievements from the built-in client data or synced cache
+  local recentAch = LeafVE:GetAchievementEntriesForPlayer(playerName, 5)
+  if self.cardAchSummary then
+    if table.getn(recentAch) > 0 then
+      self.cardAchSummary:SetText("Latest client and synced achievements")
+      self.cardAchSummary:SetTextColor(0.74, 0.79, 0.84)
+    else
+      self.cardAchSummary:SetText("Built-in client or guild sync will populate here")
+      self.cardAchSummary:SetTextColor(0.58, 0.61, 0.68)
+    end
   end
   
   -- Clear previous recent achievements
@@ -12871,39 +16595,46 @@ function LeafVE.UI:ShowPlayerCard(playerName)
   -- Display recent achievements (max 5)
   local maxRecent = math.min(5, table.getn(recentAch))
   local yOffset = 0
+  if self.cardRecentAchEmptyText then
+    self.cardRecentAchEmptyText:Hide()
+  end
   
   for i = 1, maxRecent do
     local ach = recentAch[i]
-    local meta = nil
-    if LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta then
-      meta = LeafVE_AchTest.GetAchievementMeta(ach.id)
-    end
-    local displayName = (meta and meta.name) or ach.name
-    local displayIcon = (meta and meta.icon) or ach.icon
+    local displayName = ach.name or FormatAchievementName(AchievementKey(ach.id) or "")
+    local displayIcon = ach.icon or GetAchievementIcon(ach.id)
     local entry = self.cardRecentAchEntries[i]
     
     if not entry then
       entry = CreateFrame("Frame", nil, self.cardRecentAchFrame)
-      entry:SetWidth(210)
-      entry:SetHeight(20)
+      entry:SetWidth(196)
+      entry:SetHeight(22)
+      SkinPlayerCardSection(entry, THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.8, 0.94)
       
       local icon = entry:CreateTexture(nil, "ARTWORK")
-      icon:SetWidth(16)
-      icon:SetHeight(16)
-      icon:SetPoint("LEFT", entry, "LEFT", 0, 0)
+      icon:SetWidth(14)
+      icon:SetHeight(14)
+      icon:SetPoint("LEFT", entry, "LEFT", 6, 0)
       entry.icon = icon
       
       local nameText = entry:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-      nameText:SetPoint("LEFT", icon, "RIGHT", 5, 0)
-      nameText:SetWidth(160)
+      nameText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+      nameText:SetPoint("RIGHT", entry, "RIGHT", -44, 0)
       nameText:SetJustifyH("LEFT")
       entry.nameText = nameText
       
       local pointsText = entry:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-      pointsText:SetPoint("RIGHT", entry, "RIGHT", -50, 0)
-      pointsText:SetWidth(60)
+      pointsText:SetPoint("RIGHT", entry, "RIGHT", -8, 0)
+      pointsText:SetWidth(34)
       pointsText:SetJustifyH("RIGHT")
       entry.pointsText = pointsText
+
+      entry:SetScript("OnEnter", function()
+        this:SetBackdropBorderColor(THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.9)
+      end)
+      entry:SetScript("OnLeave", function()
+        this:SetBackdropBorderColor(THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.8)
+      end)
       
       table.insert(self.cardRecentAchEntries, entry)
     end
@@ -12916,6 +16647,8 @@ function LeafVE.UI:ShowPlayerCard(playerName)
     end
     
     entry.nameText:SetText(displayName)
+    entry:SetBackdropColor(0.06, 0.07, 0.1, 0.94)
+    entry:SetBackdropBorderColor(THEME.soft[1], THEME.soft[2], THEME.soft[3], 0.8)
     
     entry.pointsText:SetText("|cFFFFD700"..ach.points.."|r")
     
@@ -12925,7 +16658,12 @@ function LeafVE.UI:ShowPlayerCard(playerName)
 
   if self.cardRecentAchFrame then
     local contentHeight = yOffset
-    if contentHeight < 22 then
+    if maxRecent < 1 then
+      contentHeight = 60
+      if self.cardRecentAchEmptyText then
+        self.cardRecentAchEmptyText:Show()
+      end
+    elseif contentHeight < 22 then
       contentHeight = 22
     end
     self.cardRecentAchFrame:SetHeight(contentHeight)
@@ -12972,15 +16710,15 @@ function LeafVE.UI:ShowAchievementPopup(achId, achData)
     popup.points = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     popup.points:SetPoint("BOTTOMLEFT", popup.icon, "BOTTOMRIGHT", 10, 5)
     
+    if self.ApplyPopupScale then
+      self:ApplyPopupScale(popup)
+    end
     self.achPopup = popup
   end
   
   -- Format achievement name
   local displayName = achId
-  local meta = nil
-  if LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta then
-    meta = LeafVE_AchTest.GetAchievementMeta(achId)
-  end
+  local meta = LeafVE:GetAchievementMeta(achId)
   if meta and meta.name then
     displayName = meta.name
   else
@@ -14089,6 +17827,9 @@ function LeafVE.UI:CreateGearPopup()
   end
 
   LayoutGearPopupContent(popup)
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.gearPopup = popup
 end
 
@@ -14340,6 +18081,9 @@ function LeafVE.UI:CreateTalentPopup()
 
   popup.talentButtons = {}
 
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.talentPopup = popup
 end
 
@@ -14620,6 +18364,11 @@ function ExtractWorkOrderQuality(token)
   local matchedQuality = string.match(tostring(token or ""), "=q(%d+)=")
   local quality = matchedQuality and tonumber(matchedQuality) or nil
   return quality or 1
+end
+
+function ExtractWorkOrderSkillRequirement(token)
+  local matchedValue = string.match(tostring(token or ""), "#sr#%s*(%d+)")
+  return matchedValue and tonumber(matchedValue) or nil
 end
 
 function ParseWorkOrderIDToken(rawId)
@@ -14956,6 +18705,21 @@ StaticPopupDialogs["LEAFVE_WORKORDER_CONFIRM"] = {
     end
     if type(data) == "table" and type(data.onCancel) == "function" then
       data.onCancel()
+    end
+  end,
+  timeout = 0,
+  whileDead = 1,
+  hideOnEscape = 1,
+}
+
+StaticPopupDialogs["LEAFVE_CONFIRM_RESET_MY_BADGES"] = {
+  text = "Reset your current-season badges?\n\nThis clears your earned badges so you can re-earn and re-test them.",
+  button1 = "Reset Badges",
+  button2 = "Cancel",
+  OnAccept = function()
+    local ok, err = LeafVE:ResetMyBadges()
+    if not ok and err then
+      Print("|cFFFF4444" .. tostring(err) .. "|r")
     end
   end,
   timeout = 0,
@@ -15359,6 +19123,23 @@ function LeafVE:ApplyWorkOrderSpellInfo(recipe)
   end
 end
 
+function LeafVE:GetWorkOrderResultIcon(itemId, spellId, currentIcon)
+  local iconPath = NormalizeIconPath((itemId and GetItemIcon and GetItemIcon(itemId)) or nil)
+  if not iconPath and spellId and GetSpellTexture then
+    iconPath = NormalizeIconPath(GetSpellTexture(spellId))
+  end
+  local rawIcon = tostring(currentIcon or "")
+  if not iconPath and rawIcon ~= "" and (
+    string.find(rawIcon, "\\", 1, true)
+    or string.find(rawIcon, "INV_", 1, true)
+    or string.find(rawIcon, "Spell_", 1, true)
+    or string.find(rawIcon, "Ability_", 1, true)
+  ) then
+    iconPath = NormalizeIconPath(currentIcon)
+  end
+  return iconPath or LEAF_FALLBACK
+end
+
 function LeafVE:GetWorkOrderItemName(itemId)
   itemId = tonumber(itemId)
   if not itemId then
@@ -15414,12 +19195,128 @@ function LeafVE:GetWorkOrderReagentLines(recipe, quantity)
   return lines
 end
 
+function LeafVE:GetWorkOrderReagentEntries(recipe, quantity)
+  local reagents = self:GetWorkOrderResolvedReagents(recipe)
+  if type(reagents) ~= "table" or table.getn(reagents) < 1 then
+    return nil
+  end
+
+  quantity = tonumber(quantity) or 1
+  if quantity < 1 then quantity = 1 end
+
+  local entries = {}
+  for i = 1, table.getn(reagents) do
+    local reagent = reagents[i]
+    local itemId = tonumber(reagent.itemId)
+    local totalQty = (tonumber(reagent.quantity) or 1) * quantity
+    local reagentName = self:GetWorkOrderItemName(itemId) or ("Item #" .. tostring(itemId or "?"))
+    table.insert(entries, {
+      itemId = itemId,
+      quantity = tonumber(reagent.quantity) or 1,
+      totalQuantity = totalQty,
+      name = reagentName,
+      icon = self:GetWorkOrderResultIcon(itemId, nil, nil),
+    })
+  end
+  return entries
+end
+
+function LeafVE:GetWorkOrderReagentBlockText(recipe, quantity, maxLines)
+  local entries = self:GetWorkOrderReagentEntries(recipe, quantity)
+  if type(entries) ~= "table" or table.getn(entries) < 1 then
+    return nil
+  end
+
+  maxLines = tonumber(maxLines) or table.getn(entries)
+  if maxLines < 1 then
+    maxLines = 1
+  end
+
+  local lines = {}
+  for i = 1, math.min(table.getn(entries), maxLines) do
+    local entry = entries[i]
+    table.insert(lines, tostring(entry.totalQuantity) .. "x " .. tostring(entry.name or "Unknown Reagent"))
+  end
+  if table.getn(entries) > maxLines then
+    table.insert(lines, "+" .. tostring(table.getn(entries) - maxLines) .. " more material" .. ((table.getn(entries) - maxLines) ~= 1 and "s" or ""))
+  end
+  return table.concat(lines, "\n")
+end
+
 function LeafVE:GetWorkOrderReagentSummary(recipe, quantity)
   local lines = self:GetWorkOrderReagentLines(recipe, quantity)
   if type(lines) ~= "table" or table.getn(lines) < 1 then
     return nil
   end
   return table.concat(lines, ", ")
+end
+
+function LeafVE:GetWorkOrderCraftYieldText(recipe)
+  if type(recipe) ~= "table" then
+    return nil
+  end
+
+  local minQty = tonumber(recipe.craftQuantityMin) or 1
+  local maxQty = tonumber(recipe.craftQuantityMax) or minQty
+  if minQty < 1 then
+    minQty = 1
+  end
+  if maxQty < minQty then
+    maxQty = minQty
+  end
+  if minQty == maxQty then
+    return "Creates " .. tostring(minQty)
+  end
+  return "Creates " .. tostring(minQty) .. "-" .. tostring(maxQty)
+end
+
+function LeafVE:GetWorkOrderRecipeMetaText(recipe)
+  if type(recipe) ~= "table" then
+    return ""
+  end
+
+  local parts = {}
+  if recipe.profession and recipe.profession ~= "" then
+    table.insert(parts, tostring(recipe.profession))
+  end
+  if tonumber(recipe.skillRequirement) then
+    table.insert(parts, "Skill " .. tostring(recipe.skillRequirement))
+  end
+  local yieldText = self:GetWorkOrderCraftYieldText(recipe)
+  if yieldText then
+    table.insert(parts, yieldText)
+  end
+  return table.concat(parts, "  |  ")
+end
+
+function LeafVE:GetWorkOrderYieldShortText(recipe)
+  if type(recipe) ~= "table" then
+    return ""
+  end
+
+  local minQty = tonumber(recipe.craftQuantityMin) or 1
+  local maxQty = tonumber(recipe.craftQuantityMax) or minQty
+  if minQty < 1 then
+    minQty = 1
+  end
+  if maxQty < minQty then
+    maxQty = minQty
+  end
+  if minQty == maxQty then
+    return minQty > 1 and ("x" .. tostring(minQty)) or ""
+  end
+  return "x" .. tostring(minQty) .. "-" .. tostring(maxQty)
+end
+
+function LeafVE:GetWorkOrderListMaterialsText(recipe, quantity, maxLines)
+  if type(recipe) == "table" and self:IsGatheringWorkOrderProfession(recipe.profession) then
+    return "|cFFAAAAAARequested delivery:|r " .. tostring(tonumber(quantity) or 1) .. "x " .. tostring(recipe.recipeName or recipe.name or "materials")
+  end
+  local reagentText = self:GetWorkOrderReagentBlockText(recipe, quantity, maxLines)
+  if reagentText and reagentText ~= "" then
+    return "|cFFAAAAAA" .. reagentText .. "|r"
+  end
+  return "|cFF666666Reagent data will appear here once the craft info is cached.|r"
 end
 
 function CanonicalMainProfession(name)
@@ -15642,6 +19539,32 @@ function LeafVE:GetNormalizedGuildRankName(playerName)
   return info and info.rank and Lower(Trim(info.rank)) or ""
 end
 
+function LeafVE:IsUnlimitedShoutoutDailyLimit(limit)
+  return tonumber(limit) == 0
+end
+
+function LeafVE:GetShoutoutDailyLimitLabel(limit)
+  limit = tonumber(limit)
+  if self:IsUnlimitedShoutoutDailyLimit(limit) then
+    return "unlimited"
+  end
+  if not limit or limit < 0 then
+    limit = SHOUTOUT_MAX_PER_DAY
+  end
+  return tostring(limit)
+end
+
+function LeafVE:GetShoutoutUsageStatusText(usedCount, maxDaily)
+  usedCount = tonumber(usedCount) or 0
+  if self:IsUnlimitedShoutoutDailyLimit(maxDaily) then
+    return string.format("Shoutouts used today: %d | Remaining: unlimited", usedCount)
+  end
+
+  local cap = tonumber(maxDaily) or SHOUTOUT_MAX_PER_DAY
+  local remaining = math.max(0, cap - usedCount)
+  return string.format("Shoutouts remaining today: %d / %d", remaining, cap)
+end
+
 function LeafVE:GetShoutoutDailyLimitForPlayer(playerName)
   local baseLimit = (LeafVE_DB and LeafVE_DB.options and tonumber(LeafVE_DB.options.shoutoutMaxDaily)) or SHOUTOUT_MAX_PER_DAY
   if not baseLimit or baseLimit < 1 then
@@ -15649,10 +19572,13 @@ function LeafVE:GetShoutoutDailyLimitForPlayer(playerName)
   end
 
   local rank = self:GetNormalizedGuildRankName(playerName)
-  if rank == "sannin" or rank == "anbu" or rank == "hokage" then
+  if rank == "kage" or rank == "hokage" then
+    return 0
+  end
+  if rank == "akatsuki" or rank == "sannin" or rank == "anbu" then
     return math.max(baseLimit, 10)
   end
-  if rank == "jonin" then
+  if rank == "jonin" or rank == "jounin" then
     return math.max(baseLimit, 3)
   end
 
@@ -15860,6 +19786,8 @@ function LeafVE:GetWorkOrderCrafterSignupGroup(playerName)
 
   local group = {
     player = shortName,
+    displayName = self:GetStoredDisplayPlayerName(shortName),
+    classTag = self:GetClassTagForPlayer(shortName),
     updatedAt = self:GetWorkOrderCrafterSignupUpdatedAt(shortName),
     professions = {},
     professionMap = {},
@@ -16543,6 +20471,7 @@ function CreateWorkOrderReputationEntry(playerName)
     totalRep = 0,
     crafterRep = 0,
     requesterRep = 0,
+    dutyBonusRep = 0,
     ordersCompleted = 0,
     ordersVerified = 0,
     totalTurnaroundSeconds = 0,
@@ -16566,6 +20495,7 @@ function CreateWorkOrderReputationEntry(playerName)
       crafterMatsBonus = 0,
       fastCraftBonus = 0,
       promptVerifyBonus = 0,
+      dutyBonusRep = 0,
       pairReduction = 0,
       pairScaledOrders = 0,
     },
@@ -16971,6 +20901,26 @@ function LeafVE:GetWorkOrderReputationSnapshot()
     end
   end
 
+  for _, bonusEntry in pairs(LeafVE_GlobalDB.shinobiDutyRepBonuses or {}) do
+    if type(bonusEntry) == "table" then
+      local playerName = ShortName(bonusEntry.name)
+      local dutyRep = math.max(0, tonumber(bonusEntry.amount) or 0)
+      if playerName and dutyRep > 0 then
+        local identityName = self:GetWorkOrderReputationIdentityName(playerName) or playerName
+        local identityKey = Lower(identityName or "")
+        if identityKey ~= "" then
+          if not snapshot.players[identityKey] then
+            snapshot.players[identityKey] = CreateWorkOrderReputationEntry(identityName)
+          end
+          local entry = snapshot.players[identityKey]
+          entry.dutyBonusRep = math.max(tonumber(entry.dutyBonusRep) or 0, dutyRep)
+          entry.breakdown.dutyBonusRep = math.max(tonumber(entry.breakdown.dutyBonusRep) or 0, dutyRep)
+          entry.totalRep = (tonumber(entry.totalRep) or 0) + dutyRep
+        end
+      end
+    end
+  end
+
   for _, entry in pairs(snapshot.players) do
     if entry.turnaroundSamples > 0 then
       entry.avgTurnaroundHours = entry.totalTurnaroundSeconds / entry.turnaroundSamples / SECONDS_PER_HOUR
@@ -16986,11 +20936,13 @@ function LeafVE:GetWorkOrderReputationSnapshot()
     entry.totalRep = RoundWorkOrderReputationValue(entry.totalRep)
     entry.crafterRep = RoundWorkOrderReputationValue(entry.crafterRep)
     entry.requesterRep = RoundWorkOrderReputationValue(entry.requesterRep)
+    entry.dutyBonusRep = RoundWorkOrderReputationValue(entry.dutyBonusRep)
     entry.breakdown.baseCrafterRep = RoundWorkOrderReputationValue(entry.breakdown.baseCrafterRep)
     entry.breakdown.baseRequesterRep = RoundWorkOrderReputationValue(entry.breakdown.baseRequesterRep)
     entry.breakdown.crafterMatsBonus = RoundWorkOrderReputationValue(entry.breakdown.crafterMatsBonus)
     entry.breakdown.fastCraftBonus = RoundWorkOrderReputationValue(entry.breakdown.fastCraftBonus)
     entry.breakdown.promptVerifyBonus = RoundWorkOrderReputationValue(entry.breakdown.promptVerifyBonus)
+    entry.breakdown.dutyBonusRep = RoundWorkOrderReputationValue(entry.breakdown.dutyBonusRep)
     entry.breakdown.pairReduction = RoundWorkOrderReputationValue(entry.breakdown.pairReduction)
 
     for professionName, professionRep in pairs(entry.professionRep or {}) do
@@ -17340,7 +21292,7 @@ function LeafVE:BuildWorkOrderLoginAlertMessage(playerName, orders)
   end)
 
   local lines = {
-    "While you were offline, " .. tostring(totalOrders) .. " open work order" .. (totalOrders ~= 1 and "s" or "") .. " matched your designations.",
+    "While you were offline, " .. tostring(totalOrders) .. " open work order" .. (totalOrders ~= 1 and "s" or "") .. " matched your saved professions.",
     "",
   }
 
@@ -17426,7 +21378,7 @@ function LeafVE:ClaimWorkOrder(orderId, claimedQuantity)
   end
   if not self:CanPlayerFulfillWorkOrder(me, order) then
     if self:DoesWorkOrderRequireDesignation(order) then
-      return nil, "You have not designated the required profession."
+      return nil, "You have not saved the required profession."
     end
     return nil, "You are not eligible to fulfill this order."
   end
@@ -17531,6 +21483,7 @@ function LeafVE:CompleteWorkOrder(orderId, completedQuantity)
   order.claimExpiresAt = 0
   self:StoreWorkOrderRecord(order)
   self:BroadcastWorkOrder(order)
+  self:RefreshShinobiDutyProgress(me)
   local completionLine = self:BuildWorkOrderCompletionLine(order, me)
   PrintWorkOrderMessage("|cFF88CCFFWork Order|r " .. completionLine)
   return order
@@ -17566,6 +21519,7 @@ function LeafVE:FinalizeWorkOrder(orderId)
   order.claimExpiresAt = 0
   self:StoreWorkOrderRecord(order)
   self:BroadcastWorkOrder(order)
+  self:RefreshShinobiDutyProgress(me)
   return order
 end
 
@@ -17791,22 +21745,26 @@ function LeafVE:EnsureWorkOrderCatalog()
               currentProfession = iconProfession
             end
 
-            local itemId, spellId = ParseWorkOrderIDToken(row[1])
+            local itemIdRow2, spellIdRow2 = ParseWorkOrderIDToken(row[2])
+            local itemIdRow3, spellIdRow3 = ParseWorkOrderIDToken(row[3])
+            local itemId = itemIdRow3 or itemIdRow2
+            local spellId = spellIdRow2 or spellIdRow3
             local profession = currentProfession
             if (itemId or spellId) and profession and catalog.byProfession[profession] then
+              local recipeName = ExtractWorkOrderRecipeName(row[4]) or ExtractWorkOrderRecipeName(row[3]) or ExtractWorkOrderRecipeName(row[5])
               local recipe = {
                 profession = profession,
-                name = ExtractWorkOrderRecipeName(row[3]),
+                name = recipeName,
                 itemId = itemId,
                 spellId = spellId,
-                icon = NormalizeIconPath(row[2])
-                  or NormalizeIconPath((spellId and GetSpellTexture and GetSpellTexture(spellId)) or nil)
-                  or LEAF_FALLBACK,
-                quality = ExtractWorkOrderQuality(row[3]),
+                icon = self:GetWorkOrderResultIcon(itemId, spellId, row[2]),
+                quality = ExtractWorkOrderQuality(row[4] or row[3]),
+                skillRequirement = ExtractWorkOrderSkillRequirement(row[5] or row[4]),
                 sourceTable = tableKey,
               }
               if recipe.name and recipe.name ~= "" then
                 self:ApplyWorkOrderSpellInfo(recipe)
+                recipe.icon = self:GetWorkOrderResultIcon(recipe.itemId, recipe.spellId, recipe.icon)
                 if not self:IsWorkOrderItemBindOnPickup(recipe.itemId) then
                   recipe.uid = GetWorkOrderRecipeKey(recipe)
                   recipe.searchKey = BuildWorkOrderSearchKey(recipe)
@@ -18275,6 +22233,7 @@ function LeafVE:SubmitWorkOrder(crafterName, recipe, quantity, tipCopper, matsMo
   end
 
   self:BroadcastWorkOrder(stored)
+  self:RefreshShinobiDutyProgress(requester)
   return stored
 end
 
@@ -19077,6 +23036,97 @@ function SetWorkOrderRowTipDisplay(btn, tipCopper)
   end
 end
 
+function HideWorkOrderSelectionReagentRows(popup)
+  if not popup or type(popup.reagentRows) ~= "table" then return end
+  for i = 1, table.getn(popup.reagentRows) do
+    local row = popup.reagentRows[i]
+    if row then
+      row.entry = nil
+      row:Hide()
+    end
+  end
+end
+
+function LayoutWorkOrderSelectionReagentRows(popup)
+  if not popup or type(popup.reagentRows) ~= "table" or not popup.reagentsLabel then
+    return 0
+  end
+
+  local availableWidth = (popup.selectionPanel and popup.selectionPanel:GetWidth()) or 0
+  availableWidth = availableWidth - 190
+  if availableWidth < 180 then
+    availableWidth = 180
+  end
+
+  local columns = 1
+  if availableWidth >= 420 then
+    columns = 2
+  end
+
+  local rowsPerColumn = 4
+  local columnGap = 12
+  local columnWidth = math.floor((availableWidth - ((columns - 1) * columnGap)) / columns)
+  if columnWidth < 160 then
+    columnWidth = 160
+  end
+
+  for i = 1, table.getn(popup.reagentRows) do
+    local row = popup.reagentRows[i]
+    if row then
+      local column = math.floor((i - 1) / rowsPerColumn)
+      local rowIndex = (i - 1) - (column * rowsPerColumn)
+      row:ClearAllPoints()
+      if column < columns then
+        row:SetPoint("TOPLEFT", popup.reagentsLabel, "BOTTOMLEFT", column * (columnWidth + columnGap), -2 - (rowIndex * 22))
+        row:SetWidth(columnWidth)
+        row.layoutEnabled = true
+      else
+        row.layoutEnabled = false
+        row:Hide()
+      end
+    end
+  end
+
+  popup.reagentRowCapacity = rowsPerColumn * columns
+  return popup.reagentRowCapacity
+end
+
+function SetWorkOrderSelectionReagentRows(popup, entries)
+  if not popup or type(popup.reagentRows) ~= "table" then
+    return false
+  end
+
+  local capacity = LayoutWorkOrderSelectionReagentRows(popup)
+  if capacity < 1 then
+    capacity = table.getn(popup.reagentRows)
+  end
+
+  local shown = 0
+  for i = 1, table.getn(popup.reagentRows) do
+    local row = popup.reagentRows[i]
+    local entry = (i <= capacity and type(entries) == "table") and entries[i] or nil
+    if row and entry and row.layoutEnabled ~= false then
+      row.entry = entry
+      if row.icon then
+        row.icon:SetTexture(entry.icon or LEAF_FALLBACK)
+      end
+      if row.qtyText then
+        row.qtyText:SetText("|cFFFFD700" .. tostring(entry.totalQuantity or entry.quantity or 1) .. "x|r")
+      end
+      if row.nameText then
+        row.nameText:SetText(tostring(entry.name or "Unknown Reagent"))
+      end
+      row:Show()
+      shown = shown + 1
+    elseif row then
+      row.entry = nil
+      row:Hide()
+    end
+  end
+
+  return shown > 0
+end
+
 function GetCustomGatheringNameFromPopup(popup)
   if not popup or not popup.customGatherInput then
     return ""
@@ -19249,32 +23299,62 @@ end
 function CreateWorkOrderRecipeButton(parent)
   local btn = CreateFrame("Button", nil, parent)
   btn:SetWidth(240)
-  btn:SetHeight(24)
+  btn:SetHeight(66)
   btn:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8X8",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
     tile = false, tileSize = 8, edgeSize = 10,
     insets = {left = 2, right = 2, top = 2, bottom = 2}
   })
+  btn:SetBackdropColor(0.08, 0.08, 0.09, 0.92)
+  btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.75)
+
+  local accent = btn:CreateTexture(nil, "ARTWORK")
+  accent:SetPoint("TOPLEFT", btn, "TOPLEFT", 8, -8)
+  accent:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -8, -8)
+  accent:SetHeight(2)
+  accent:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accent:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.55)
+  btn.accent = accent
 
   local icon = btn:CreateTexture(nil, "ARTWORK")
-  icon:SetPoint("LEFT", btn, "LEFT", 4, 0)
-  icon:SetWidth(18)
-  icon:SetHeight(18)
+  icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 8, -12)
+  icon:SetWidth(30)
+  icon:SetHeight(30)
   icon:SetTexture(LEAF_FALLBACK)
   btn.icon = icon
 
   local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  text:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-  text:SetWidth(170)
+  text:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, 2)
+  text:SetWidth(150)
   text:SetJustifyH("LEFT")
+  text:SetJustifyV("TOP")
   btn.text = text
 
+  local metaText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  metaText:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -4)
+  metaText:SetWidth(150)
+  metaText:SetJustifyH("LEFT")
+  metaText:SetJustifyV("TOP")
+  metaText:SetText("")
+  btn.metaText = metaText
+
+  local reagentText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  reagentText:SetPoint("TOPLEFT", metaText, "BOTTOMLEFT", 0, -5)
+  reagentText:SetWidth(190)
+  reagentText:SetHeight(22)
+  reagentText:SetJustifyH("LEFT")
+  reagentText:SetJustifyV("TOP")
+  reagentText:SetText("")
+  btn.reagentText = reagentText
+
   local idText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  idText:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
-  idText:SetWidth(42)
+  idText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -8, -12)
+  idText:SetWidth(58)
   idText:SetJustifyH("RIGHT")
+  idText:SetJustifyV("TOP")
   idText:SetTextColor(0.7, 0.7, 0.7)
+  idText:SetText("")
   btn.idText = idText
 
   btn:SetScript("OnEnter", function()
@@ -19320,7 +23400,7 @@ end
 function CreateWorkOrderOrderButton(parent)
   local btn = CreateFrame("Button", nil, parent)
   btn:SetWidth(240)
-  btn:SetHeight(94)
+  btn:SetHeight(126)
   btn:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8X8",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -19330,42 +23410,59 @@ function CreateWorkOrderOrderButton(parent)
   btn:SetBackdropColor(0.08, 0.08, 0.09, 0.92)
   btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.75)
 
+  local accent = btn:CreateTexture(nil, "ARTWORK")
+  accent:SetPoint("TOPLEFT", btn, "TOPLEFT", 8, -8)
+  accent:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -8, -8)
+  accent:SetHeight(2)
+  accent:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accent:SetVertexColor(THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.45)
+  btn.accent = accent
+
   local icon = btn:CreateTexture(nil, "ARTWORK")
-  icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 6, -8)
-  icon:SetWidth(20)
-  icon:SetHeight(20)
+  icon:SetPoint("TOPLEFT", btn, "TOPLEFT", 8, -12)
+  icon:SetWidth(30)
+  icon:SetHeight(30)
   icon:SetTexture(LEAF_FALLBACK)
   btn.icon = icon
 
   local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  text:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, 0)
-  text:SetWidth(150)
-  text:SetHeight(24)
+  text:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, 2)
+  text:SetWidth(170)
+  text:SetHeight(20)
   text:SetJustifyH("LEFT")
   text:SetJustifyV("TOP")
   text:SetText("Work Order")
   btn.text = text
 
   local detailText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  detailText:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -3)
-  detailText:SetWidth(150)
-  detailText:SetHeight(30)
+  detailText:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -5)
+  detailText:SetWidth(190)
+  detailText:SetHeight(28)
   detailText:SetJustifyH("LEFT")
   detailText:SetJustifyV("TOP")
   detailText:SetText("")
   btn.detailText = detailText
 
   local statusText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  statusText:SetPoint("TOPLEFT", detailText, "BOTTOMLEFT", 0, -2)
-  statusText:SetWidth(150)
-  statusText:SetHeight(28)
+  statusText:SetPoint("TOPLEFT", detailText, "BOTTOMLEFT", 0, -4)
+  statusText:SetWidth(190)
+  statusText:SetHeight(24)
   statusText:SetJustifyH("LEFT")
   statusText:SetJustifyV("TOP")
   statusText:SetText("")
   btn.statusText = statusText
 
+  local reagentText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  reagentText:SetPoint("TOPLEFT", statusText, "BOTTOMLEFT", 0, -4)
+  reagentText:SetWidth(190)
+  reagentText:SetHeight(28)
+  reagentText:SetJustifyH("LEFT")
+  reagentText:SetJustifyV("TOP")
+  reagentText:SetText("")
+  btn.reagentText = reagentText
+
   local idText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  idText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -82, -6)
+  idText:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -110, -12)
   idText:SetWidth(62)
   idText:SetJustifyH("RIGHT")
   idText:SetTextColor(0.7, 0.7, 0.7)
@@ -19373,7 +23470,7 @@ function CreateWorkOrderOrderButton(parent)
   btn.idText = idText
 
   local tipLabel = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  tipLabel:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -10, -31)
+  tipLabel:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -10, -14)
   tipLabel:SetText("Tip")
   tipLabel:Hide()
   btn.tipLabel = tipLabel
@@ -19472,7 +23569,7 @@ function CreateWorkOrderOrderButton(parent)
   local secondaryActionBtn = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
   secondaryActionBtn:SetWidth(70)
   secondaryActionBtn:SetHeight(18)
-  secondaryActionBtn:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -8, -8)
+  secondaryActionBtn:SetPoint("BOTTOMRIGHT", actionBtn, "TOPRIGHT", 0, 4)
   secondaryActionBtn:SetText("")
   secondaryActionBtn.row = btn
   secondaryActionBtn:Hide()
@@ -19687,7 +23784,11 @@ function CreateWorkOrderCrafterRowButton(parent)
     this:SetBackdropColor(0.13, 0.13, 0.16, 0.98)
     GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
     GameTooltip:ClearLines()
-    GameTooltip:SetText(this.group.player or "Crafter", THEME.gold[1], THEME.gold[2], THEME.gold[3], 1, true)
+    GameTooltip:SetText(this.group.displayName or this.group.player or "Crafter", THEME.gold[1], THEME.gold[2], THEME.gold[3], 1, true)
+    local titleDef = LeafVE:GetEquippedTitleDefinitionForPlayer(this.group.player)
+    if titleDef and titleDef.title and titleDef.title ~= "" then
+      GameTooltip:AddLine("Title: " .. tostring(titleDef.title), 0.8, 0.92, 1.0)
+    end
     GameTooltip:AddLine("Work Order Rep: " .. tostring(this.group.repTotal or 0) .. "  |  Tier: " .. tostring(this.group.repTierName or "Leaf Apprentice"), 0.75, 0.95, 0.75)
     if this.group.crafterRank then
       GameTooltip:AddLine(tostring(GetWorkOrderCrafterRankLabel(this.group.crafterRank) or ""), 1.0, 0.82, 0.2)
@@ -19870,7 +23971,7 @@ function LeafVE.UI:CreateProfessionPopup()
   local titleText = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   titleText:SetPoint("TOP", popup, "TOP", 0, -15)
   titleText:SetTextColor(THEME.gold[1], THEME.gold[2], THEME.gold[3])
-  titleText:SetText("Profession Designations")
+  titleText:SetText("Professions")
   popup.titleText = titleText
 
   local subtitleText = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -20017,7 +24118,7 @@ function LeafVE.UI:CreateProfessionPopup()
       return
     end
 
-    owner.feedbackText:SetText("|cFF88FF88Profession designations saved.|r")
+    owner.feedbackText:SetText("|cFF88FF88Professions saved.|r")
     if LeafVE and LeafVE.UI and LeafVE.UI.cardCurrentPlayer then
       LeafVE.UI:RefreshProfessionPopup(LeafVE.UI.cardCurrentPlayer)
       if LeafVE.UI.workOrderPopup and LeafVE.UI.workOrderPopup:IsVisible() then
@@ -20033,6 +24134,9 @@ function LeafVE.UI:CreateProfessionPopup()
     end
   end)
 
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.professionPopup = popup
 end
 
@@ -20083,17 +24187,17 @@ function LeafVE.UI:RefreshProfessionPopup(playerName)
       end
     end
     popup.infoText:SetText(
-      "|cFFFFD700How Designations Work|r\n" ..
+      "|cFFFFD700How Professions Work|r\n" ..
       "\n" ..
       "1. Pick up to 2 main professions and any secondary professions you can craft.\n" ..
       "\n" ..
-      "2. Save them once so everyone with the addon sees your crafting designations.\n" ..
+      "2. Save them once so everyone with the addon sees the professions you can fulfill.\n" ..
       "\n" ..
-      "3. In |cFFFFD700Live Orders|r, only matching designations can claim a work order.\n" ..
+      "3. In |cFFFFD700Live Orders|r, only matching saved professions can claim a crafted work order.\n" ..
       "\n" ..
       "4. Claimed orders stay pending for 48 hours until they are completed or released.\n" ..
       "\n" ..
-      "|cFFAAAAAAThese designations only control what you can fulfill, not what you can request.|r"
+      "|cFFAAAAAAThese saved professions only control what you can fulfill, not what you can request.|r"
     )
     popup.saveBtn:Show()
     popup.saveBtn:Enable()
@@ -20112,7 +24216,7 @@ function LeafVE.UI:RefreshProfessionPopup(playerName)
       end
     end
     popup.infoText:SetText(
-      "|cFFFFD700How Designations Work|r\n" ..
+      "|cFFFFD700How Professions Work|r\n" ..
       "\n" ..
       "Players save the professions they can craft in the sections above.\n" ..
       "\n" ..
@@ -20206,13 +24310,40 @@ function LeafVE.UI:CreateWorkOrderCrafterSignupPopup()
   summaryText:SetPoint("TOP", subtitleText, "BOTTOM", 0, -3)
   summaryText:SetTextColor(0.75, 0.85, 1.0)
   popup.summaryText = summaryText
+  popup.collectionMode = "all"
 
   local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
   closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
   closeBtn:SetScript("OnClick", function() popup:Hide() end)
 
+  local allRecipesBtn = CreateWorkOrderModeButton(popup, "All Recipes")
+  allRecipesBtn:SetWidth(94)
+  allRecipesBtn:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -64)
+  allRecipesBtn.popup = popup
+  allRecipesBtn:SetScript("OnClick", function()
+    this.popup.collectionMode = "all"
+    this.popup.recipeOffset = 0
+    if LeafVE and LeafVE.UI and LeafVE.UI.RefreshWorkOrderCrafterSignupPopup then
+      LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(this.popup.currentPlayer, this.popup.isEditable)
+    end
+  end)
+  popup.allRecipesBtn = allRecipesBtn
+
+  local selectedRecipesBtn = CreateWorkOrderModeButton(popup, "My Selected")
+  selectedRecipesBtn:SetWidth(100)
+  selectedRecipesBtn:SetPoint("LEFT", allRecipesBtn, "RIGHT", 8, 0)
+  selectedRecipesBtn.popup = popup
+  selectedRecipesBtn:SetScript("OnClick", function()
+    this.popup.collectionMode = "selected"
+    this.popup.recipeOffset = 0
+    if LeafVE and LeafVE.UI and LeafVE.UI.RefreshWorkOrderCrafterSignupPopup then
+      LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(this.popup.currentPlayer, this.popup.isEditable)
+    end
+  end)
+  popup.selectedRecipesBtn = selectedRecipesBtn
+
   local professionPanel = CreateInset(popup)
-  professionPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -88)
+  professionPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -116)
   professionPanel:SetPoint("BOTTOMLEFT", popup, "BOTTOMLEFT", 18, 120)
   professionPanel:SetWidth(120)
   popup.professionPanel = professionPanel
@@ -20225,7 +24356,7 @@ function LeafVE.UI:CreateWorkOrderCrafterSignupPopup()
   for i = 1, table.getn(WORK_ORDER_PROFESSION_ORDER) do
     local profession = WORK_ORDER_PROFESSION_ORDER[i]
     local btn = CreateWorkOrderProfessionButton(professionPanel, profession)
-    btn:SetPoint("TOPLEFT", professionPanel, "TOPLEFT", 10, -32 - ((i - 1) * 26))
+    btn:SetPoint("TOPLEFT", professionPanel, "TOPLEFT", 10, -28 - ((i - 1) * 22))
     btn.popup = popup
     btn:SetScript("OnClick", function()
       if not this:IsEnabled() then return end
@@ -20304,7 +24435,7 @@ function LeafVE.UI:CreateWorkOrderCrafterSignupPopup()
   end)
   popup.recipeListFrame = recipeListFrame
   popup.recipeButtons = {}
-  popup.recipeRowHeight = 26
+  popup.recipeRowHeight = 70
   popup.recipeVisibleRows = 12
   popup.recipeOffset = 0
   popup.filteredRecipes = {}
@@ -20435,6 +24566,9 @@ function LeafVE.UI:CreateWorkOrderCrafterSignupPopup()
     end
   end)
 
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.workOrderCrafterSignupPopup = popup
 end
 
@@ -20450,6 +24584,11 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
   local switchedPlayer = popup.currentPlayer and not SamePlayerName(popup.currentPlayer, targetName)
   popup.currentPlayer = targetName
   popup.isEditable = allowEdit and true or nil
+  if not allowEdit then
+    popup.collectionMode = "all"
+  elseif popup.collectionMode ~= "selected" then
+    popup.collectionMode = "all"
+  end
 
   local group = LeafVE:GetWorkOrderCrafterSignupGroup(targetName)
   local catalog = LeafVE:EnsureWorkOrderCatalog()
@@ -20499,7 +24638,24 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
   if allowEdit then
     popup.subtitleText:SetText("Choose the recipes you can fulfill for guildmates")
   else
-    popup.subtitleText:SetText("Viewing |cFFFFD700" .. targetName .. "|r's selected craft list")
+    popup.subtitleText:SetText("Viewing |cFFFFD700" .. LeafVE:GetStoredDisplayPlayerName(targetName) .. "|r's selected craft list")
+  end
+
+  if popup.allRecipesBtn then
+    if allowEdit then
+      popup.allRecipesBtn:Show()
+      UpdateWorkOrderModeButtonVisual(popup.allRecipesBtn, popup.collectionMode ~= "selected")
+    else
+      popup.allRecipesBtn:Hide()
+    end
+  end
+  if popup.selectedRecipesBtn then
+    if allowEdit then
+      popup.selectedRecipesBtn:Show()
+      UpdateWorkOrderModeButtonVisual(popup.selectedRecipesBtn, popup.collectionMode == "selected")
+    else
+      popup.selectedRecipesBtn:Hide()
+    end
   end
 
   local professionCount = 0
@@ -20574,7 +24730,22 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
 
   local recipes = {}
   if selectedProfession then
-    if allowEdit then
+    if allowEdit and popup.collectionMode == "selected" then
+      for i = 1, table.getn(WORK_ORDER_PROFESSION_ORDER) do
+        local profession = WORK_ORDER_PROFESSION_ORDER[i]
+        local selectionMap = popup.editSelections and popup.editSelections[profession]
+        if CountWorkOrderCrafterSelectionMap(selectionMap) > 0 then
+          local professionRecipes = LeafVE:GetTradeableWorkOrderRecipes(catalog.byProfession[profession])
+          for j = 1, table.getn(professionRecipes) do
+            local recipe = professionRecipes[j]
+            local token = GetWorkOrderCrafterRecipeToken(recipe)
+            if token and selectionMap[token] then
+              table.insert(recipes, recipe)
+            end
+          end
+        end
+      end
+    elseif allowEdit then
       recipes = LeafVE:GetTradeableWorkOrderRecipes(catalog.byProfession[selectedProfession])
     elseif group and group.professionMap and group.professionMap[selectedProfession] then
       recipes = group.professionMap[selectedProfession].recipes or {}
@@ -20652,7 +24823,13 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
       btn.recipe = recipe
       btn:SetWidth(listWidth - 4)
       if btn.text then
-        btn.text:SetWidth(math.max(120, listWidth - 76))
+        btn.text:SetWidth(math.max(140, listWidth - 96))
+      end
+      if btn.metaText then
+        btn.metaText:SetWidth(math.max(140, listWidth - 96))
+      end
+      if btn.reagentText then
+        btn.reagentText:SetWidth(math.max(150, listWidth - 96))
       end
       btn:ClearAllPoints()
       btn:SetPoint("TOPLEFT", popup.recipeListFrame, "TOPLEFT", 2, -((row - 1) * rowHeight) - 2)
@@ -20662,12 +24839,25 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
       else
         btn.text:SetText((WORK_ORDER_QUALITY_COLORS[recipe.quality or 1] or "|cFFFFFFFF") .. tostring(recipe.name or "Recipe") .. "|r")
       end
-      if recipe.itemId then
-        btn.idText:SetText("#" .. tostring(recipe.itemId))
-      elseif recipe.spellId then
-        btn.idText:SetText("s" .. tostring(recipe.spellId))
-      else
-        btn.idText:SetText("")
+      if btn.metaText then
+        local metaText = LeafVE:GetWorkOrderRecipeMetaText(recipe)
+        if metaText == "" and selectedProfession == "Gathering" then
+          metaText = tostring(recipe.profession or "Gathering") .. " request"
+        end
+        btn.metaText:SetText("|cFF88CCFF" .. tostring(metaText) .. "|r")
+      end
+      if btn.reagentText then
+        btn.reagentText:SetText(LeafVE:GetWorkOrderListMaterialsText(recipe, 1, 2))
+      end
+      if btn.idText then
+        local yieldShort = LeafVE:GetWorkOrderYieldShortText(recipe)
+        if yieldShort ~= "" then
+          btn.idText:SetText("|cFFFFD700" .. yieldShort .. "|r")
+          btn.idText:Show()
+        else
+          btn.idText:SetText("")
+          btn.idText:Hide()
+        end
       end
       UpdateWorkOrderRecipeButtonVisual(btn, isSelected)
       btn:Show()
@@ -20687,6 +24877,8 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
       popup.emptyText:SetText("|cFF888888Select a profession to browse recipes.|r")
     elseif filterText ~= "" then
       popup.emptyText:SetText("|cFF888888No recipes matched this filter.|r")
+    elseif allowEdit and popup.collectionMode == "selected" then
+      popup.emptyText:SetText("|cFF888888You have not selected any recipes yet.|r")
     elseif allowEdit then
       popup.emptyText:SetText("|cFF888888No supported crafting recipes were found for this profession.|r")
     else
@@ -20695,7 +24887,11 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
   end
 
   if popup.footerSummaryText then
-    if selectedProfession then
+    if allowEdit and popup.collectionMode == "selected" then
+      popup.footerSummaryText:SetText(
+        "|cFFFFD700My Selected Recipes|r  |  " .. tostring(totalRecipes) .. " selected recipe(s)"
+      )
+    elseif selectedProfession then
       popup.footerSummaryText:SetText(
         "|cFFFFD700" .. tostring(selectedProfession) .. "|r  |  " ..
         tostring(professionCounts[selectedProfession] or 0) .. " selected recipe(s)"
@@ -20707,9 +24903,13 @@ function LeafVE.UI:RefreshWorkOrderCrafterSignupPopup(playerName, isEditable)
 
   if popup.infoText then
     if allowEdit then
-      popup.infoText:SetText("Click recipes to add or remove them from your crafter list, then Save to publish it for guildmates.")
+      if popup.collectionMode == "selected" then
+        popup.infoText:SetText("This tab shows only the recipes you have already selected. Click any recipe to remove it, or switch back to All Recipes to keep editing.")
+      else
+        popup.infoText:SetText("Click recipes to add or remove them from your crafter list, then Save to publish it for guildmates.")
+      end
     else
-      popup.infoText:SetText("This list shows the recipes " .. tostring(targetName) .. " signed up to craft for guild work orders.")
+      popup.infoText:SetText("This list shows the recipes " .. tostring(LeafVE:GetStoredDisplayPlayerName(targetName)) .. " signed up to craft for guild work orders.")
     end
   end
 
@@ -20746,7 +24946,7 @@ function LeafVE.UI:RefreshWorkOrderCraftersView(playerName, popup)
 
   LeafVE:RequestWorkOrderCrafterSync(false)
 
-  popup.subtitleText:SetText("Browse crafter sign-ups and selected recipes")
+  popup.subtitleText:SetText("Browse signed-up crafters and their available recipes")
 
   local me = ShortName(UnitName("player"))
   local myGroup = me and LeafVE:GetWorkOrderCrafterSignupGroup(me) or nil
@@ -20787,7 +24987,7 @@ function LeafVE.UI:RefreshWorkOrderCraftersView(playerName, popup)
       btn:ClearAllPoints()
       btn:SetPoint("TOPLEFT", popup.crafterListFrame, "TOPLEFT", 2, -((row - 1) * rowHeight) - 2)
       btn.icon:SetTexture(group.icon or LEAF_FALLBACK)
-      btn.nameText:SetText("|cFFFFD700" .. tostring(group.player or "Crafter") .. "|r")
+      btn.nameText:SetText(LeafVE:BuildStyledPlayerName(group.displayName or group.player or "Crafter", group.classTag))
       if btn.repBadge and btn.repBadgeIcon and btn.repBadgeText then
         local repColor = group.repColor or {THEME.leaf[1], THEME.leaf[2], THEME.leaf[3]}
         btn.repBadge:SetBackdropBorderColor(repColor[1], repColor[2], repColor[3], 0.85)
@@ -20868,22 +25068,11 @@ function LeafVE.UI:CreateWorkOrderPopup()
   local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
   closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
   closeBtn:SetScript("OnClick", function() popup:Hide() end)
-
-  local browseModeBtn = CreateWorkOrderModeButton(popup, "Create Order")
-  browseModeBtn:SetWidth(108)
-  browseModeBtn:SetPoint("TOPLEFT", popup, "TOPLEFT", 22, -57)
-  browseModeBtn.popup = popup
-  browseModeBtn:SetScript("OnClick", function()
-    this.popup.viewMode = "browse"
-    if LeafVE and LeafVE.UI and LeafVE.UI.cardCurrentPlayer then
-      LeafVE.UI:RefreshWorkOrderPopup(LeafVE.UI.cardCurrentPlayer)
-    end
-  end)
-  popup.browseModeBtn = browseModeBtn
+  popup.closeBtn = closeBtn
 
   local liveModeBtn = CreateWorkOrderModeButton(popup, "Live")
   liveModeBtn:SetWidth(82)
-  liveModeBtn:SetPoint("LEFT", browseModeBtn, "RIGHT", 8, 0)
+  liveModeBtn:SetPoint("TOPLEFT", popup, "TOPLEFT", 22, -57)
   liveModeBtn.popup = popup
   liveModeBtn:SetScript("OnClick", function()
     this.popup.viewMode = "live"
@@ -20893,9 +25082,21 @@ function LeafVE.UI:CreateWorkOrderPopup()
   end)
   popup.liveModeBtn = liveModeBtn
 
+  local browseModeBtn = CreateWorkOrderModeButton(popup, "Create Order")
+  browseModeBtn:SetWidth(108)
+  browseModeBtn:SetPoint("LEFT", liveModeBtn, "RIGHT", 8, 0)
+  browseModeBtn.popup = popup
+  browseModeBtn:SetScript("OnClick", function()
+    this.popup.viewMode = "browse"
+    if LeafVE and LeafVE.UI and LeafVE.UI.cardCurrentPlayer then
+      LeafVE.UI:RefreshWorkOrderPopup(LeafVE.UI.cardCurrentPlayer)
+    end
+  end)
+  popup.browseModeBtn = browseModeBtn
+
   local ordersModeBtn = CreateWorkOrderModeButton(popup, "My Orders")
   ordersModeBtn:SetWidth(98)
-  ordersModeBtn:SetPoint("LEFT", liveModeBtn, "RIGHT", 8, 0)
+  ordersModeBtn:SetPoint("LEFT", browseModeBtn, "RIGHT", 8, 0)
   ordersModeBtn.popup = popup
   ordersModeBtn:SetScript("OnClick", function()
     this.popup.viewMode = "orders"
@@ -20919,7 +25120,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
 
   local professionPanel = CreateInset(popup)
   professionPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -108)
-  professionPanel:SetPoint("BOTTOMLEFT", popup, "BOTTOMLEFT", 18, 236)
+  professionPanel:SetPoint("BOTTOMLEFT", popup, "BOTTOMLEFT", 18, 204)
   professionPanel:SetWidth(120)
   popup.professionPanel = professionPanel
 
@@ -20932,7 +25133,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
     local profession = WORK_ORDER_REQUEST_CATEGORY_ORDER[i]
     local btn = CreateWorkOrderProfessionButton(professionPanel, profession)
     btn.popup = popup
-    btn:SetPoint("TOPLEFT", professionPanel, "TOPLEFT", 10, -32 - ((i - 1) * 26))
+    btn:SetPoint("TOPLEFT", professionPanel, "TOPLEFT", 10, -28 - ((i - 1) * 22))
     btn:SetScript("OnClick", function()
       if not this:IsEnabled() then return end
       this.popup.selectedProfession = this.profession
@@ -20950,7 +25151,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
 
   local recipePanel = CreateInset(popup)
   recipePanel:SetPoint("TOPLEFT", professionPanel, "TOPRIGHT", 10, 0)
-  recipePanel:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 236)
+  recipePanel:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 204)
   popup.recipePanel = recipePanel
 
   local searchLabel = recipePanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -21009,7 +25210,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
   end)
   popup.recipeListFrame = recipeListFrame
   popup.recipeButtons = {}
-  popup.recipeRowHeight = 26
+  popup.recipeRowHeight = 70
   popup.recipeVisibleRows = 12
   popup.recipeOffset = 0
   popup.filteredRecipes = {}
@@ -21059,11 +25260,40 @@ function LeafVE.UI:CreateWorkOrderPopup()
   local selectionPanel = CreateInset(popup)
   selectionPanel:SetPoint("BOTTOMLEFT", popup, "BOTTOMLEFT", 18, 18)
   selectionPanel:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 18)
-  selectionPanel:SetHeight(206)
+  selectionPanel:SetHeight(176)
   popup.selectionPanel = selectionPanel
 
+  professionPanel:ClearAllPoints()
+  professionPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -108)
+  professionPanel:SetPoint("BOTTOMLEFT", selectionPanel, "TOPLEFT", 0, 10)
+  professionPanel:SetWidth(120)
+
+  recipePanel:ClearAllPoints()
+  recipePanel:SetPoint("TOPLEFT", professionPanel, "TOPRIGHT", 10, 0)
+  recipePanel:SetPoint("BOTTOMRIGHT", selectionPanel, "TOPRIGHT", 0, 10)
+
+  local selectedIconBG = CreateFrame("Frame", nil, selectionPanel)
+  selectedIconBG:SetPoint("TOPLEFT", selectionPanel, "TOPLEFT", 10, -10)
+  selectedIconBG:SetWidth(40)
+  selectedIconBG:SetHeight(40)
+  selectedIconBG:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = {left = 3, right = 3, top = 3, bottom = 3}
+  })
+  selectedIconBG:SetBackdropColor(0.08, 0.08, 0.09, 0.94)
+  selectedIconBG:SetBackdropBorderColor(0.35, 0.35, 0.38, 0.9)
+  popup.selectedIconBG = selectedIconBG
+
+  local selectedIcon = selectedIconBG:CreateTexture(nil, "ARTWORK")
+  selectedIcon:SetPoint("TOPLEFT", selectedIconBG, "TOPLEFT", 4, -4)
+  selectedIcon:SetPoint("BOTTOMRIGHT", selectedIconBG, "BOTTOMRIGHT", -4, 4)
+  selectedIcon:SetTexture(LEAF_FALLBACK)
+  popup.selectedIcon = selectedIcon
+
   local selectedText = selectionPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  selectedText:SetPoint("TOPLEFT", selectionPanel, "TOPLEFT", 10, -9)
+  selectedText:SetPoint("TOPLEFT", selectedIconBG, "TOPRIGHT", 10, -2)
   selectedText:SetPoint("RIGHT", selectionPanel, "RIGHT", -155, 0)
   selectedText:SetJustifyH("LEFT")
   selectedText:SetText("|cFF888888No recipe selected|r")
@@ -21078,17 +25308,79 @@ function LeafVE.UI:CreateWorkOrderPopup()
 
   local reagentsLabel = selectionPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   reagentsLabel:SetPoint("TOPLEFT", detailText, "BOTTOMLEFT", 0, -4)
-  reagentsLabel:SetText("Reagents")
+  reagentsLabel:SetText("Exact Materials")
   popup.reagentsLabel = reagentsLabel
 
   local reagentsText = selectionPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   reagentsText:SetPoint("TOPLEFT", reagentsLabel, "BOTTOMLEFT", 0, -2)
   reagentsText:SetPoint("RIGHT", selectionPanel, "RIGHT", -155, 0)
-  reagentsText:SetHeight(50)
+  reagentsText:SetHeight(88)
   reagentsText:SetJustifyH("LEFT")
   reagentsText:SetJustifyV("TOP")
   reagentsText:SetText("")
   popup.reagentsText = reagentsText
+
+  popup.reagentRows = {}
+  for i = 1, 8 do
+    local reagentRow = CreateFrame("Frame", nil, selectionPanel)
+    reagentRow:SetPoint("TOPLEFT", reagentsLabel, "BOTTOMLEFT", 0, -2 - ((i - 1) * 22))
+    reagentRow:SetWidth(180)
+    reagentRow:SetHeight(20)
+    reagentRow:EnableMouse(true)
+
+    local reagentIconBG = CreateFrame("Frame", nil, reagentRow)
+    reagentIconBG:SetPoint("LEFT", reagentRow, "LEFT", 0, 0)
+    reagentIconBG:SetWidth(18)
+    reagentIconBG:SetHeight(18)
+    reagentIconBG:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 10,
+      insets = {left = 2, right = 2, top = 2, bottom = 2}
+    })
+    reagentIconBG:SetBackdropColor(0.08, 0.08, 0.09, 0.95)
+    reagentIconBG:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.85)
+
+    local reagentIcon = reagentIconBG:CreateTexture(nil, "ARTWORK")
+    reagentIcon:SetPoint("TOPLEFT", reagentIconBG, "TOPLEFT", 2, -2)
+    reagentIcon:SetPoint("BOTTOMRIGHT", reagentIconBG, "BOTTOMRIGHT", -2, 2)
+    reagentIcon:SetTexture(LEAF_FALLBACK)
+    reagentRow.icon = reagentIcon
+
+    local reagentQtyText = reagentRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    reagentQtyText:SetPoint("LEFT", reagentIconBG, "RIGHT", 6, 0)
+    reagentQtyText:SetWidth(34)
+    reagentQtyText:SetJustifyH("LEFT")
+    reagentQtyText:SetText("")
+    reagentRow.qtyText = reagentQtyText
+
+    local reagentNameText = reagentRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    reagentNameText:SetPoint("LEFT", reagentQtyText, "RIGHT", 4, 0)
+    reagentNameText:SetPoint("RIGHT", reagentRow, "RIGHT", 0, 0)
+    reagentNameText:SetJustifyH("LEFT")
+    reagentNameText:SetText("")
+    reagentRow.nameText = reagentNameText
+
+    reagentRow:SetScript("OnEnter", function()
+      if not this.entry then
+        return
+      end
+      GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+      GameTooltip:ClearLines()
+      if this.entry.itemId then
+        GameTooltip:SetHyperlink("item:" .. tostring(this.entry.itemId))
+      else
+        GameTooltip:SetText(this.entry.name or "Reagent", THEME.gold[1], THEME.gold[2], THEME.gold[3], 1, true)
+      end
+      GameTooltip:AddLine("Required: " .. tostring(this.entry.totalQuantity or this.entry.quantity or 1) .. "x", 1, 0.82, 0.2)
+      GameTooltip:Show()
+    end)
+    reagentRow:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    reagentRow:Hide()
+    popup.reagentRows[i] = reagentRow
+  end
+  LayoutWorkOrderSelectionReagentRows(popup)
 
   local feedbackText = selectionPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   feedbackText:SetPoint("TOPLEFT", reagentsText, "BOTTOMLEFT", 0, -6)
@@ -21320,7 +25612,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
   ordersHint:SetHeight(28)
   ordersHint:SetJustifyH("LEFT")
   ordersHint:SetJustifyV("TOP")
-  ordersHint:SetText("|cFFAAAAAABrowse open and pending work orders across everyone using the addon.\nOnly matching designated professions can fulfill them.|r")
+  ordersHint:SetText("|cFFAAAAAABrowse open and pending work orders across everyone using the addon.\nMatching saved professions can fulfill crafted requests, while gathering requests stay open to everyone.|r")
   popup.ordersHint = ordersHint
 
   local ordersFeedbackText = ordersPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -21354,7 +25646,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
   end)
   popup.orderListFrame = orderListFrame
   popup.orderButtons = {}
-  popup.orderRowHeight = 94
+  popup.orderRowHeight = 126
   popup.orderVisibleRows = 6
   popup.orderOffset = 0
   popup.openOrderRows = {}
@@ -21403,7 +25695,7 @@ function LeafVE.UI:CreateWorkOrderPopup()
 
   BuildWorkOrderCraftersPanel(popup)
 
-  popup.viewMode = "browse"
+  popup.viewMode = "live"
 
   popup:SetScript("OnUpdate", function()
     if not this:IsVisible() or this.viewMode == "browse" then
@@ -21427,7 +25719,754 @@ function LeafVE.UI:CreateWorkOrderPopup()
     end
   end)
 
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.workOrderPopup = popup
+end
+
+function WorkOrderEllipsizeText(text, limit)
+  text = tostring(text or "")
+  limit = tonumber(limit) or 40
+  if string.len(text) <= limit then
+    return text
+  end
+  if limit < 4 then
+    return string.sub(text, 1, limit)
+  end
+  return string.sub(text, 1, limit - 3) .. "..."
+end
+
+function LeafVE.UI:EnsureWorkOrderOverviewWidgets(popup)
+  if not popup or popup.workOrderOverviewBar then
+    return
+  end
+
+  local bar = CreateFrame("Frame", nil, popup)
+  bar:SetHeight(78)
+  popup.workOrderOverviewBar = bar
+  popup.workOrderOverviewCards = {}
+
+  local cardSpecs = {
+    { key = "board", label = "Board Pulse", color = THEME.leaf },
+    { key = "queue", label = "My Queue", color = { 0.65, 0.82, 1.0 } },
+    { key = "rep", label = "Reputation", color = THEME.gold },
+    { key = "professions", label = "Professions", color = { 0.8, 0.72, 1.0 } },
+  }
+
+  for i = 1, table.getn(cardSpecs) do
+    local spec = cardSpecs[i]
+    local card = CreateGradientInset(bar)
+    card:SetHeight(78)
+
+    local accent = card:CreateTexture(nil, "ARTWORK")
+    accent:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -10)
+    accent:SetPoint("TOPRIGHT", card, "TOPRIGHT", -10, -10)
+    accent:SetHeight(2)
+    accent:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    accent:SetVertexColor(spec.color[1], spec.color[2], spec.color[3], 0.75)
+    card.accent = accent
+
+    local labelText = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    labelText:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -16)
+    labelText:SetWidth(170)
+    labelText:SetJustifyH("LEFT")
+    labelText:SetText("|cFFAAAAAA" .. tostring(spec.label) .. "|r")
+    card.labelText = labelText
+
+    local valueText = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    valueText:SetPoint("TOPLEFT", labelText, "BOTTOMLEFT", 0, -4)
+    valueText:SetPoint("RIGHT", card, "RIGHT", -12, 0)
+    valueText:SetJustifyH("LEFT")
+    valueText:SetText("|cFFFFD700--|r")
+    card.valueText = valueText
+
+    local detailText = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    detailText:SetPoint("TOPLEFT", valueText, "BOTTOMLEFT", 0, -4)
+    detailText:SetPoint("RIGHT", card, "RIGHT", -12, 0)
+    detailText:SetJustifyH("LEFT")
+    detailText:SetJustifyV("TOP")
+    detailText:SetText("|cFF777777--|r")
+    card.detailText = detailText
+
+    popup.workOrderOverviewCards[spec.key] = card
+  end
+end
+
+function LeafVE.UI:RefreshEmbeddedWorkOrderOverview(popup, playerName)
+  if not popup then
+    return
+  end
+
+  self:EnsureWorkOrderOverviewWidgets(popup)
+  if not popup.workOrderOverviewCards then
+    return
+  end
+
+  local targetPlayer = ShortName(playerName or popup.currentPlayer or UnitName("player"))
+  if not targetPlayer then
+    return
+  end
+
+  local me = ShortName(UnitName("player"))
+  local isSelf = me and Lower(me) == Lower(targetPlayer)
+  local now = Now()
+  local liveOrders = LeafVE:GetLiveWorkOrders() or {}
+  local openCount = 0
+  local pendingCount = 0
+  local eligibleCount = 0
+  local myOrders = LeafVE:GetWorkOrdersForRequester(targetPlayer, targetPlayer) or {}
+  local queueOpen = 0
+  local queuePending = 0
+  local queueCompleted = 0
+  local claimCount = LeafVE:GetOpenWorkOrderCountForCrafter(targetPlayer) or 0
+  local repEntry = LeafVE:GetWorkOrderReputationForPlayer(targetPlayer)
+  local repTotal = tonumber(repEntry and repEntry.totalRep) or 0
+  local tierInfo = (repEntry and repEntry.tierInfo) or LeafVE:GetWorkOrderReputationTierInfo(repTotal)
+  local tierName, _, _, repColor = GetWorkOrderReputationTierVisual(tierInfo)
+  local designation = LeafVE:GetProfessionDesignation(targetPlayer)
+  local mainProfessionText = "No professions saved"
+  local secondaryProfessionText = "Set your professions so orders can match you."
+
+  for i = 1, table.getn(liveOrders) do
+    local order = liveOrders[i]
+    local status = LeafVE:GetEffectiveWorkOrderStatus(order, now)
+    if status == "pending" then
+      pendingCount = pendingCount + 1
+    else
+      openCount = openCount + 1
+      if LeafVE:CanPlayerFulfillWorkOrder(targetPlayer, order) then
+        eligibleCount = eligibleCount + 1
+      end
+    end
+  end
+
+  for i = 1, table.getn(myOrders) do
+    local status = LeafVE:GetEffectiveWorkOrderStatus(myOrders[i], now)
+    if status == "completed" then
+      queueCompleted = queueCompleted + 1
+    elseif status == "pending" then
+      queuePending = queuePending + 1
+    else
+      queueOpen = queueOpen + 1
+    end
+  end
+
+  if type(designation) == "table" then
+    if type(designation.main) == "table" and table.getn(designation.main) > 0 then
+      mainProfessionText = WorkOrderEllipsizeText(table.concat(designation.main, " / "), 30)
+    end
+    if type(designation.secondary) == "table" and table.getn(designation.secondary) > 0 then
+      secondaryProfessionText = WorkOrderEllipsizeText("Secondary: " .. table.concat(designation.secondary, ", "), 50)
+    else
+      secondaryProfessionText = "No secondary professions saved."
+    end
+  end
+
+  if popup.workOrderOverviewCards.board then
+    popup.workOrderOverviewCards.board.labelText:SetText("|cFF88CC88Board Pulse|r")
+    popup.workOrderOverviewCards.board.valueText:SetText("|cFFFFD700" .. tostring(openCount) .. " Open|r")
+    popup.workOrderOverviewCards.board.detailText:SetText(
+      "|cFF88CCFF" .. tostring(pendingCount) .. " pending|r  |  " .. tostring(eligibleCount) .. " match " .. (isSelf and "you" or targetPlayer)
+    )
+  end
+
+  if popup.workOrderOverviewCards.queue then
+    popup.workOrderOverviewCards.queue.labelText:SetText(isSelf and "|cFF88CCFFMy Queue|r" or ("|cFF88CCFF" .. targetPlayer .. "'s Queue|r"))
+    popup.workOrderOverviewCards.queue.valueText:SetText("|cFFFFD700" .. tostring(claimCount) .. " Claim" .. (claimCount ~= 1 and "s" or "") .. "|r")
+    popup.workOrderOverviewCards.queue.detailText:SetText(
+      tostring(queueOpen) .. " open  |  " .. tostring(queuePending) .. " pending  |  " .. tostring(queueCompleted) .. " awaiting verify"
+    )
+  end
+
+  if popup.workOrderOverviewCards.rep then
+    local repHex = RGBToHex(repColor[1], repColor[2], repColor[3])
+    local nextText = nil
+    if tierInfo and tierInfo.next and tierInfo.nextMin then
+      nextText = tostring(math.max(0, tierInfo.nextMin - repTotal)) .. " to " .. tostring(tierInfo.next.name or "next tier")
+    else
+      nextText = "Highest work order tier reached"
+    end
+    popup.workOrderOverviewCards.rep.labelText:SetText("|cFFFFD700Reputation|r")
+    popup.workOrderOverviewCards.rep.valueText:SetText("|cFF" .. repHex .. tostring(tierName or "Leaf Apprentice") .. "|r")
+    popup.workOrderOverviewCards.rep.detailText:SetText(
+      "|cFFFFD700" .. tostring(repTotal) .. " REP|r  |  " .. tostring(nextText)
+    )
+  end
+
+  if popup.workOrderOverviewCards.professions then
+    popup.workOrderOverviewCards.professions.labelText:SetText("|cFFCCB8FFProfessions|r")
+    popup.workOrderOverviewCards.professions.valueText:SetText("|cFFFFD700" .. tostring(mainProfessionText) .. "|r")
+    popup.workOrderOverviewCards.professions.detailText:SetText("|cFFAAAAAA" .. tostring(secondaryProfessionText) .. "|r")
+  end
+end
+
+function LeafVE.UI:ApplyEmbeddedWorkOrderLayout(popup, panel)
+  if not popup or not panel then
+    return
+  end
+
+  self:EnsureWorkOrderOverviewWidgets(popup)
+
+  local panelWidth = panel:GetWidth() or popup:GetWidth() or 760
+  if panelWidth < 720 then
+    panelWidth = 720
+  end
+
+  popup.isEmbeddedWorkOrderView = true
+  popup:ClearAllPoints()
+  popup:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+  popup:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
+  popup:SetFrameStrata(panel:GetFrameStrata())
+  popup:SetFrameLevel((panel:GetFrameLevel() or 1) + 5)
+
+  if popup.SetBackdropColor then
+    popup:SetBackdropColor(0, 0, 0, 0)
+  end
+  if popup.SetBackdropBorderColor then
+    popup:SetBackdropBorderColor(0, 0, 0, 0)
+  end
+  if popup.closeBtn then
+    popup.closeBtn:Hide()
+  end
+
+  popup.titleText:ClearAllPoints()
+  popup.titleText:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -14)
+  popup.titleText:SetWidth(panelWidth - 36)
+  popup.titleText:SetJustifyH("LEFT")
+
+  popup.subtitleText:ClearAllPoints()
+  popup.subtitleText:SetPoint("TOPLEFT", popup.titleText, "BOTTOMLEFT", 0, -4)
+  popup.subtitleText:SetWidth(panelWidth - 36)
+  popup.subtitleText:SetJustifyH("LEFT")
+
+  popup.summaryText:ClearAllPoints()
+  popup.summaryText:SetPoint("TOPLEFT", popup.subtitleText, "BOTTOMLEFT", 0, -3)
+  popup.summaryText:SetWidth(panelWidth - 36)
+  popup.summaryText:SetJustifyH("LEFT")
+
+  popup.liveModeBtn:ClearAllPoints()
+  popup.liveModeBtn:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -72)
+  popup.liveModeBtn:SetWidth(92)
+
+  popup.browseModeBtn:ClearAllPoints()
+  popup.browseModeBtn:SetPoint("LEFT", popup.liveModeBtn, "RIGHT", 8, 0)
+  popup.browseModeBtn:SetWidth(112)
+
+  popup.ordersModeBtn:ClearAllPoints()
+  popup.ordersModeBtn:SetPoint("LEFT", popup.browseModeBtn, "RIGHT", 8, 0)
+  popup.ordersModeBtn:SetWidth(100)
+
+  if popup.craftersModeBtn then
+    popup.craftersModeBtn:ClearAllPoints()
+    popup.craftersModeBtn:SetPoint("LEFT", popup.ordersModeBtn, "RIGHT", 8, 0)
+    popup.craftersModeBtn:SetWidth(92)
+  end
+
+  if popup.workOrderOverviewBar and popup.workOrderOverviewCards then
+    local bar = popup.workOrderOverviewBar
+    local gap = 10
+    local cardWidth = math.floor((panelWidth - 36 - (gap * 3)) / 4)
+    if cardWidth < 150 then
+      cardWidth = 150
+    end
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPLEFT", popup.liveModeBtn, "BOTTOMLEFT", 0, -14)
+    bar:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -18, -108)
+    bar:SetHeight(78)
+
+    local boardCard = popup.workOrderOverviewCards.board
+    local queueCard = popup.workOrderOverviewCards.queue
+    local repCard = popup.workOrderOverviewCards.rep
+    local professionCard = popup.workOrderOverviewCards.professions
+
+    if boardCard and queueCard and repCard and professionCard then
+      boardCard:ClearAllPoints()
+      boardCard:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+      boardCard:SetWidth(cardWidth)
+
+      queueCard:ClearAllPoints()
+      queueCard:SetPoint("TOPLEFT", boardCard, "TOPRIGHT", gap, 0)
+      queueCard:SetWidth(cardWidth)
+
+      repCard:ClearAllPoints()
+      repCard:SetPoint("TOPLEFT", queueCard, "TOPRIGHT", gap, 0)
+      repCard:SetWidth(cardWidth)
+
+      professionCard:ClearAllPoints()
+      professionCard:SetPoint("TOPLEFT", repCard, "TOPRIGHT", gap, 0)
+      professionCard:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
+    end
+  end
+
+  popup.professionPanel:ClearAllPoints()
+  popup.professionPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -194)
+  popup.professionPanel:SetPoint("BOTTOMLEFT", popup.selectionPanel, "TOPLEFT", 0, 10)
+  popup.professionPanel:SetWidth(152)
+
+  popup.recipePanel:ClearAllPoints()
+  popup.recipePanel:SetPoint("TOPLEFT", popup.professionPanel, "TOPRIGHT", 10, 0)
+  popup.recipePanel:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -18, -194)
+  popup.recipePanel:SetPoint("BOTTOMRIGHT", popup.selectionPanel, "TOPRIGHT", 0, 10)
+
+  popup.selectionPanel:ClearAllPoints()
+  popup.selectionPanel:SetPoint("BOTTOMLEFT", popup, "BOTTOMLEFT", 18, 18)
+  popup.selectionPanel:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -18, 18)
+  popup.selectionPanel:SetHeight(176)
+  LayoutWorkOrderSelectionReagentRows(popup)
+
+  if popup.searchBG then
+    popup.searchBG:ClearAllPoints()
+    popup.searchBG:SetPoint("TOPLEFT", popup.recipePanel, "TOPLEFT", 10, -32)
+    popup.searchBG:SetPoint("TOPRIGHT", popup.recipePanel, "TOPRIGHT", -10, -32)
+    popup.searchBG:SetHeight(22)
+  end
+
+  if popup.recipeListFrame then
+    popup.recipeListFrame:ClearAllPoints()
+    popup.recipeListFrame:SetPoint("TOPLEFT", popup.recipePanel, "TOPLEFT", 8, -62)
+    popup.recipeListFrame:SetPoint("BOTTOMRIGHT", popup.recipePanel, "BOTTOMRIGHT", -30, 10)
+  end
+
+  if popup.recipeScrollBar then
+    popup.recipeScrollBar:ClearAllPoints()
+    popup.recipeScrollBar:SetPoint("TOPRIGHT", popup.recipePanel, "TOPRIGHT", -8, -62)
+    popup.recipeScrollBar:SetPoint("BOTTOMRIGHT", popup.recipePanel, "BOTTOMRIGHT", -8, 10)
+  end
+
+  if popup.ordersPanel then
+    popup.ordersPanel:ClearAllPoints()
+    popup.ordersPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -194)
+    popup.ordersPanel:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -18, 18)
+  end
+
+  if popup.ordersHint and popup.ordersTitle and popup.ordersPanel then
+    popup.ordersHint:ClearAllPoints()
+    popup.ordersHint:SetPoint("TOPLEFT", popup.ordersTitle, "BOTTOMLEFT", 0, -5)
+    popup.ordersHint:SetPoint("RIGHT", popup.ordersPanel, "RIGHT", -14, 0)
+    popup.ordersHint:SetHeight(30)
+  end
+
+  if popup.ordersFeedbackText and popup.ordersHint and popup.ordersPanel then
+    popup.ordersFeedbackText:ClearAllPoints()
+    popup.ordersFeedbackText:SetPoint("TOPLEFT", popup.ordersHint, "BOTTOMLEFT", 0, -4)
+    popup.ordersFeedbackText:SetPoint("RIGHT", popup.ordersPanel, "RIGHT", -14, 0)
+    popup.ordersFeedbackText:SetHeight(24)
+  end
+
+  if popup.orderListFrame and popup.ordersFeedbackText and popup.ordersPanel then
+    popup.orderListFrame:ClearAllPoints()
+    popup.orderListFrame:SetPoint("TOPLEFT", popup.ordersFeedbackText, "BOTTOMLEFT", 0, -8)
+    popup.orderListFrame:SetPoint("BOTTOMRIGHT", popup.ordersPanel, "BOTTOMRIGHT", -30, 10)
+  end
+
+  if popup.orderScrollBar and popup.ordersPanel and popup.orderListFrame then
+    popup.orderScrollBar:ClearAllPoints()
+    popup.orderScrollBar:SetPoint("TOPRIGHT", popup.orderListFrame, "TOPRIGHT", 22, 0)
+    popup.orderScrollBar:SetPoint("BOTTOMRIGHT", popup.ordersPanel, "BOTTOMRIGHT", -8, 10)
+  end
+
+  if popup.noOrdersText then
+    popup.noOrdersText:SetWidth(panelWidth - 110)
+  end
+
+  if popup.craftersPanel then
+    popup.craftersPanel:ClearAllPoints()
+    popup.craftersPanel:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -194)
+    popup.craftersPanel:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -18, 18)
+  end
+
+  if popup.crafterSignUpBtn and popup.craftersPanel then
+    popup.crafterSignUpBtn:ClearAllPoints()
+    popup.crafterSignUpBtn:SetPoint("TOPRIGHT", popup.craftersPanel, "TOPRIGHT", -10, -8)
+  end
+
+  if popup.craftersHint and popup.craftersTitle and popup.crafterSignUpBtn then
+    popup.craftersHint:ClearAllPoints()
+    popup.craftersHint:SetPoint("TOPLEFT", popup.craftersTitle, "BOTTOMLEFT", 0, -5)
+    popup.craftersHint:SetPoint("RIGHT", popup.crafterSignUpBtn, "LEFT", -8, 0)
+    popup.craftersHint:SetHeight(30)
+  end
+
+  if popup.craftersFeedbackText and popup.craftersHint and popup.craftersPanel then
+    popup.craftersFeedbackText:ClearAllPoints()
+    popup.craftersFeedbackText:SetPoint("TOPLEFT", popup.craftersHint, "BOTTOMLEFT", 0, -4)
+    popup.craftersFeedbackText:SetPoint("RIGHT", popup.craftersPanel, "RIGHT", -14, 0)
+    popup.craftersFeedbackText:SetHeight(24)
+  end
+
+  if popup.crafterListFrame and popup.craftersFeedbackText and popup.craftersPanel then
+    popup.crafterListFrame:ClearAllPoints()
+    popup.crafterListFrame:SetPoint("TOPLEFT", popup.craftersFeedbackText, "BOTTOMLEFT", 0, -8)
+    popup.crafterListFrame:SetPoint("BOTTOMRIGHT", popup.craftersPanel, "BOTTOMRIGHT", -30, 10)
+  end
+
+  if popup.crafterScrollBar and popup.craftersPanel and popup.crafterListFrame then
+    popup.crafterScrollBar:ClearAllPoints()
+    popup.crafterScrollBar:SetPoint("TOPRIGHT", popup.crafterListFrame, "TOPRIGHT", 22, 0)
+    popup.crafterScrollBar:SetPoint("BOTTOMRIGHT", popup.craftersPanel, "BOTTOMRIGHT", -8, 10)
+  end
+
+  if popup.noCraftersText then
+    popup.noCraftersText:SetWidth(panelWidth - 110)
+  end
+end
+
+function BuildWorkOrdersPanel(panel)
+  if not panel or panel.isWorkOrdersBuilt then return end
+  panel.isWorkOrdersBuilt = true
+
+  local headerBG = panel:CreateTexture(nil, "BACKGROUND")
+  headerBG:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -10)
+  headerBG:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -10)
+  headerBG:SetHeight(158)
+  headerBG:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  headerBG:SetVertexColor(0.11, 0.11, 0.14, 0.92)
+
+  local accentTop = panel:CreateTexture(nil, "BORDER")
+  accentTop:SetPoint("TOPLEFT", headerBG, "TOPLEFT", 0, 0)
+  accentTop:SetPoint("TOPRIGHT", headerBG, "TOPRIGHT", 0, 0)
+  accentTop:SetHeight(3)
+  accentTop:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accentTop:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
+
+  local divider = panel:CreateTexture(nil, "ARTWORK")
+  divider:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -188)
+  divider:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -188)
+  divider:SetHeight(1)
+  divider:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  divider:SetVertexColor(0.35, 0.35, 0.38, 0.5)
+end
+
+function BuildShinobiDutiesPanel(panel)
+  if not panel or panel.isShinobiDutiesBuilt then return end
+  panel.isShinobiDutiesBuilt = true
+
+  local headerBG = panel:CreateTexture(nil, "BACKGROUND")
+  headerBG:SetPoint("TOP", panel, "TOP", 0, -10)
+  headerBG:SetWidth(760)
+  headerBG:SetHeight(56)
+  headerBG:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  headerBG:SetVertexColor(0.15, 0.15, 0.18, 0.9)
+
+  local accentTop = panel:CreateTexture(nil, "BORDER")
+  accentTop:SetPoint("TOPLEFT", headerBG, "TOPLEFT", 0, 0)
+  accentTop:SetPoint("TOPRIGHT", headerBG, "TOPRIGHT", 0, 0)
+  accentTop:SetHeight(3)
+  accentTop:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accentTop:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
+
+  local h = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  h:SetPoint("TOP", headerBG, "TOP", 0, -10)
+  h:SetText("|cFFFFD700Shinobi Duties|r")
+
+  local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  subtitle:SetPoint("TOP", h, "BOTTOM", 0, -4)
+  subtitle:SetText("|cFF888888Five randomized weekly missions built from tracked guild activity.|r")
+
+  local summaryCard = CreateGradientInset(panel)
+  summaryCard:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -76)
+  summaryCard:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -76)
+  summaryCard:SetHeight(96)
+  panel.shinobiDutiesSummaryCard = summaryCard
+
+  local weekRangeText = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  weekRangeText:SetPoint("TOPLEFT", summaryCard, "TOPLEFT", 14, -12)
+  weekRangeText:SetWidth(340)
+  weekRangeText:SetJustifyH("LEFT")
+  weekRangeText:SetText("|cFFAAAAAAWeek|r")
+  panel.shinobiDutiesWeekRangeText = weekRangeText
+
+  local resetText = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  resetText:SetPoint("TOPLEFT", weekRangeText, "BOTTOMLEFT", 0, -6)
+  resetText:SetWidth(340)
+  resetText:SetJustifyH("LEFT")
+  resetText:SetText("|cFF888888Reset in --|r")
+  panel.shinobiDutiesResetText = resetText
+
+  local remainingText = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  remainingText:SetPoint("TOPLEFT", resetText, "BOTTOMLEFT", 0, -8)
+  remainingText:SetWidth(420)
+  remainingText:SetJustifyH("LEFT")
+  remainingText:SetText("|cFF88CC88Remaining Rewards|r")
+  panel.shinobiDutiesRemainingText = remainingText
+
+  local hintText = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hintText:SetPoint("TOPLEFT", remainingText, "BOTTOMLEFT", 0, -6)
+  hintText:SetPoint("RIGHT", summaryCard, "RIGHT", -14, 0)
+  hintText:SetJustifyH("LEFT")
+  hintText:SetText("|cFF888888Work order actions, grouped play, honorable kills, and shoutouts can all feed this board.|r")
+  panel.shinobiDutiesHintText = hintText
+
+  local completedValue = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  completedValue:SetPoint("TOPRIGHT", summaryCard, "TOPRIGHT", -16, -14)
+  completedValue:SetText("|cFFFFD7000 / 5|r")
+  panel.shinobiDutiesCompletedValue = completedValue
+
+  local completedLabel = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  completedLabel:SetPoint("TOPRIGHT", completedValue, "BOTTOMRIGHT", 0, -2)
+  completedLabel:SetText("|cFFAAAAAADuties Complete|r")
+
+  local dutyBonusText = summaryCard:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  dutyBonusText:SetPoint("TOPRIGHT", completedLabel, "BOTTOMRIGHT", 0, -8)
+  dutyBonusText:SetText("|cFF88CCFFDuty REP Bonus: +0|r")
+  panel.shinobiDutiesDutyBonusText = dutyBonusText
+
+  panel.dutyRows = {}
+  local previous = summaryCard
+  for i = 1, table.getn(LeafVE.shinobiDutyTierOrder or {}) do
+    local row = CreateInset(panel)
+    row:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -10)
+    row:SetPoint("TOPRIGHT", previous, "BOTTOMRIGHT", 0, -10)
+    row:SetHeight(86)
+
+    local badgeFrame = CreateFrame("Frame", nil, row)
+    badgeFrame:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -12)
+    badgeFrame:SetWidth(38)
+    badgeFrame:SetHeight(38)
+    badgeFrame:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = {left = 3, right = 3, top = 3, bottom = 3}
+    })
+    badgeFrame:SetBackdropColor(0.12, 0.12, 0.12, 0.95)
+    badgeFrame:SetBackdropBorderColor(0.35, 0.35, 0.38, 1)
+    row.badgeFrame = badgeFrame
+
+    local badgeText = badgeFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    badgeText:SetPoint("CENTER", badgeFrame, "CENTER", 0, 0)
+    badgeText:SetText("S")
+    row.badgeText = badgeText
+
+    local icon = row:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("TOPLEFT", badgeFrame, "TOPRIGHT", 10, -2)
+    icon:SetWidth(30)
+    icon:SetHeight(30)
+    icon:SetTexture(LEAF_EMBLEM)
+    row.icon = icon
+
+    local titleText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    titleText:SetPoint("TOPLEFT", icon, "TOPRIGHT", 10, 2)
+    titleText:SetWidth(320)
+    titleText:SetJustifyH("LEFT")
+    titleText:SetText("|cFFFFD700Duty|r")
+    row.titleText = titleText
+
+    local rewardText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    rewardText:SetPoint("TOPRIGHT", row, "TOPRIGHT", -14, -12)
+    rewardText:SetWidth(170)
+    rewardText:SetJustifyH("RIGHT")
+    rewardText:SetText("|cFFFFD700+0 LP|r  |  |cFF88CCFF+0 REP|r")
+    row.rewardText = rewardText
+
+    local descText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    descText:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -6)
+    descText:SetWidth(500)
+    descText:SetJustifyH("LEFT")
+    descText:SetText("|cFFAAAAAAWeekly mission description.|r")
+    row.descText = descText
+
+    local metaText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    metaText:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 62, 30)
+    metaText:SetWidth(480)
+    metaText:SetJustifyH("LEFT")
+    metaText:SetText("|cFF777777Progress updates automatically from tracked activity.|r")
+    row.metaText = metaText
+
+    local statusText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    statusText:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -14, 30)
+    statusText:SetWidth(180)
+    statusText:SetJustifyH("RIGHT")
+    statusText:SetText("|cFFAAAAAAIn Progress|r")
+    row.statusText = statusText
+
+    local progressBG = CreateFrame("Frame", nil, row)
+    progressBG:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 62, 12)
+    progressBG:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -14, 12)
+    progressBG:SetHeight(16)
+    progressBG:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = {left = 3, right = 3, top = 3, bottom = 3}
+    })
+    progressBG:SetBackdropColor(0.05, 0.05, 0.05, 0.92)
+    progressBG:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
+    row.progressBG = progressBG
+
+    local progressBar = CreateFrame("StatusBar", nil, progressBG)
+    progressBar:SetPoint("TOPLEFT", progressBG, "TOPLEFT", 2, -2)
+    progressBar:SetPoint("BOTTOMRIGHT", progressBG, "BOTTOMRIGHT", -2, 2)
+    progressBar:SetStatusBarTexture("Interface\\TARGETINGFRAME\\UI-StatusBar")
+    progressBar:SetStatusBarColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
+    progressBar:SetMinMaxValues(0, 1)
+    progressBar:SetValue(0)
+    row.progressBar = progressBar
+
+    local progressText = progressBG:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    progressText:SetPoint("CENTER", progressBG, "CENTER", 0, 0)
+    progressText:SetText("Progress")
+    row.progressText = progressText
+
+    panel.dutyRows[i] = row
+    previous = row
+  end
+end
+
+function LeafVE.UI:RefreshShinobiDutiesPanel()
+  local panel = self.panels and self.panels.shinobiDuties
+  if not panel then
+    return
+  end
+
+  local me = ShortName(UnitName("player"))
+  if not me then
+    return
+  end
+
+  local function FormatDutyValue(value)
+    value = tonumber(value) or 0
+    if math.abs(value - math.floor(value + 0.0001)) < 0.001 then
+      return tostring(math.floor(value + 0.0001))
+    end
+    return string.format("%.1f", value)
+  end
+
+  local state = LeafVE:RefreshShinobiDutyProgress(me)
+  local duties = state and state.duties or {}
+  local totalCount = table.getn(duties)
+  local completedCount = 0
+  local remainingLP = 0
+  local remainingRep = 0
+  local now = Now()
+  local nextResetTS = WeekStartTS(now) + (7 * SECONDS_PER_DAY)
+
+  for i = 1, totalCount do
+    local duty = duties[i]
+    if type(duty) == "table" then
+      local tierInfo = LeafVE:GetShinobiDutyTierInfo(duty.tier) or {}
+      if duty.completedAt then
+        completedCount = completedCount + 1
+      else
+        remainingLP = remainingLP + (tonumber(duty.lpReward) or tonumber(tierInfo.lpReward) or 0)
+        remainingRep = remainingRep + (tonumber(duty.repReward) or tonumber(tierInfo.repReward) or 0)
+      end
+    end
+  end
+
+  if panel.shinobiDutiesWeekRangeText then
+    panel.shinobiDutiesWeekRangeText:SetText("|cFFAAAAAAWeek|r  " .. tostring(GetWeekDateRange()))
+  end
+  if panel.shinobiDutiesResetText then
+    panel.shinobiDutiesResetText:SetText("|cFFAAAAAAReset in|r  |cFFFFD700" .. FormatCompactCountdownText(nextResetTS - now) .. "|r")
+  end
+  if panel.shinobiDutiesCompletedValue then
+    panel.shinobiDutiesCompletedValue:SetText("|cFFFFD700" .. tostring(completedCount) .. " / " .. tostring(math.max(5, totalCount)) .. "|r")
+  end
+  if panel.shinobiDutiesRemainingText then
+    panel.shinobiDutiesRemainingText:SetText(
+      "|cFF88CC88Remaining Rewards|r  |cFFFFD700+" .. LeafVE:FormatPointAmount(remainingLP) .. " LP|r  |  |cFF88CCFF+" .. tostring(remainingRep) .. " REP|r"
+    )
+  end
+  if panel.shinobiDutiesDutyBonusText then
+    panel.shinobiDutiesDutyBonusText:SetText("|cFF88CCFFDuty REP Bonus: +" .. tostring(LeafVE:GetShinobiDutyRepBonusAmount(me)) .. "|r")
+  end
+  if panel.shinobiDutiesHintText then
+    if totalCount > 0 and completedCount >= totalCount then
+      panel.shinobiDutiesHintText:SetText("|cFF88CC88All weekly duties complete. A new mission board arrives after the weekly reset.|r")
+    else
+      panel.shinobiDutiesHintText:SetText("|cFF888888Progress comes from tracked kills with guildies, grouped hours, shoutouts, quests, and work orders.|r")
+    end
+  end
+
+  for i = 1, table.getn(panel.dutyRows or {}) do
+    local row = panel.dutyRows[i]
+    local duty = duties[i]
+    if row and type(duty) == "table" then
+      local tierInfo = LeafVE:GetShinobiDutyTierInfo(duty.tier) or {}
+      local metricDef = LeafVE:GetShinobiDutyMetricDefinition(duty.metricKey)
+      local color = tierInfo.color or THEME.gold
+      local rr, gg, bb = color[1] or THEME.gold[1], color[2] or THEME.gold[2], color[3] or THEME.gold[3]
+      local target = math.max(1, tonumber(duty.target) or 1)
+      local progress = tonumber(duty.cachedProgress) or LeafVE:GetShinobiDutyMetricProgress(me, duty) or 0
+      local shownProgress = math.max(0, math.min(progress, target))
+      local lpReward = tonumber(duty.lpReward) or tonumber(tierInfo.lpReward) or 0
+      local repReward = tonumber(duty.repReward) or tonumber(tierInfo.repReward) or 0
+
+      row.badgeText:SetText(tostring(duty.tier or "?"))
+      row.badgeFrame:SetBackdropColor(rr * 0.22, gg * 0.22, bb * 0.22, 0.96)
+      row.badgeFrame:SetBackdropBorderColor(rr, gg, bb, 1)
+      row.icon:SetTexture(duty.icon or LEAF_EMBLEM)
+      row.titleText:SetText("|cFF" .. RGBToHex(rr, gg, bb) .. tostring(duty.title or "Duty") .. "|r")
+      row.rewardText:SetText("|cFFFFD700+" .. tostring(lpReward) .. " LP|r  |  |cFF88CCFF+" .. tostring(repReward) .. " REP|r")
+      row.descText:SetText("|cFFCCCCCC" .. tostring(duty.description or "Weekly mission") .. "|r")
+      row.metaText:SetText("|cFF777777" .. tostring((metricDef and metricDef.sourceHint) or "Progress updates automatically from tracked addon activity.") .. "|r")
+      row.progressBar:SetMinMaxValues(0, target)
+      row.progressBar:SetValue(shownProgress)
+      if duty.completedAt then
+        row.progressBar:SetStatusBarColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
+        row.statusText:SetText("|cFF88CC88Completed " .. date("%m/%d %H:%M", tonumber(duty.completedAt) or now) .. "|r")
+      else
+        row.progressBar:SetStatusBarColor(rr, gg, bb, 1)
+        row.statusText:SetText("|cFFAAAAAAIn Progress|r")
+      end
+      row.progressText:SetText(
+        tostring((metricDef and metricDef.progressLabel) or "Progress") .. ": " .. FormatDutyValue(progress) .. " / " .. FormatDutyValue(target)
+      )
+      row:Show()
+    elseif row then
+      row:Hide()
+    end
+  end
+end
+
+function LeafVE.UI:EnsureEmbeddedWorkOrderView()
+  local panel = self.panels and self.panels.workOrders
+  if not panel then
+    return nil
+  end
+
+  BuildWorkOrdersPanel(panel)
+
+  if not self.workOrderPopup then
+    self:CreateWorkOrderPopup()
+  end
+
+  local popup = self.workOrderPopup
+  if not popup then
+    return nil
+  end
+
+  if popup:GetParent() ~= panel then
+    popup:SetParent(panel)
+    panel.workOrderView = popup
+  end
+
+  self:ApplyEmbeddedWorkOrderLayout(popup, panel)
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
+
+  return popup
+end
+
+function LeafVE.UI:RefreshWorkOrdersPanel()
+  local popup = self:EnsureEmbeddedWorkOrderView()
+  if not popup then
+    return
+  end
+
+  local playerName = self:GetActiveWorkOrderPlayerName()
+  if not playerName then
+    return
+  end
+
+  if self.ApplyEmbeddedWorkOrderLayout and self.panels and self.panels.workOrders then
+    self:ApplyEmbeddedWorkOrderLayout(popup, self.panels.workOrders)
+  end
+  self:RefreshWorkOrderPopup(playerName)
+  popup:Show()
 end
 
 function LeafVE.UI:RefreshWorkOrderBrowseView(playerName, popup, catalog)
@@ -21441,7 +26480,7 @@ function LeafVE.UI:RefreshWorkOrderBrowseView(playerName, popup, catalog)
     popup.craftersPanel:Hide()
   end
 
-  popup.subtitleText:SetText("Create a guild work order")
+  popup.subtitleText:SetText("Draft a village request from the Epoch crafting board")
   popup.matsMode = NormalizeWorkOrderMatsMode(popup.matsMode)
 
   local selectedProfession = popup.selectedProfession
@@ -21554,7 +26593,13 @@ function LeafVE.UI:RefreshWorkOrderBrowseView(playerName, popup, catalog)
       btn.recipe = recipe
       btn:SetWidth(listWidth - 4)
       if btn.text then
-        btn.text:SetWidth(math.max(120, listWidth - 76))
+        btn.text:SetWidth(math.max(140, listWidth - 96))
+      end
+      if btn.metaText then
+        btn.metaText:SetWidth(math.max(140, listWidth - 96))
+      end
+      if btn.reagentText then
+        btn.reagentText:SetWidth(math.max(150, listWidth - 96))
       end
       btn:ClearAllPoints()
       btn:SetPoint("TOPLEFT", popup.recipeListFrame, "TOPLEFT", 2, -((row - 1) * rowHeight) - 2)
@@ -21564,12 +26609,29 @@ function LeafVE.UI:RefreshWorkOrderBrowseView(playerName, popup, catalog)
       else
         btn.text:SetText((WORK_ORDER_QUALITY_COLORS[recipe.quality or 1] or "|cFFFFFFFF") .. tostring(recipe.name or "Recipe") .. "|r")
       end
-      if recipe.itemId then
-        btn.idText:SetText("#" .. tostring(recipe.itemId))
-      elseif recipe.spellId then
-        btn.idText:SetText("s" .. tostring(recipe.spellId))
-      else
-        btn.idText:SetText("")
+      if btn.metaText then
+        local metaText = LeafVE:GetWorkOrderRecipeMetaText(recipe)
+        if metaText == "" and selectedProfession == "Gathering" then
+          metaText = tostring(recipe.profession or "Gathering") .. " request"
+        end
+        btn.metaText:SetText("|cFF88CCFF" .. tostring(metaText) .. "|r")
+      end
+      if btn.reagentText then
+        btn.reagentText:SetText(LeafVE:GetWorkOrderListMaterialsText(recipe, 1, 2))
+      end
+      if btn.idText then
+        local yieldShort = LeafVE:GetWorkOrderYieldShortText(recipe)
+        if yieldShort ~= "" then
+          btn.idText:SetText("|cFFFFD700" .. yieldShort .. "|r")
+          btn.idText:Show()
+        else
+          btn.idText:SetText("")
+          btn.idText:Hide()
+        end
+      end
+      if btn.accent then
+        local color = THEME.leaf
+        btn.accent:SetVertexColor(color[1], color[2], color[3], 0.55)
       end
       UpdateWorkOrderRecipeButtonVisual(btn, popup.selectedRecipe and popup.selectedRecipe.uid == recipe.uid)
       btn:Show()
@@ -21681,43 +26743,77 @@ function LeafVE.UI:RefreshWorkOrderBrowseView(playerName, popup, catalog)
     end
   end
   UpdateWorkOrderTipPreviewFromPopup(popup)
+  LayoutWorkOrderSelectionReagentRows(popup)
 
   if selectedRecipe then
     local selectedQuantity = tonumber(Trim(popup.qtyInput and popup.qtyInput:GetText() or "")) or 1
     if selectedQuantity < 1 then selectedQuantity = 1 end
     if selectedQuantity > 99 then selectedQuantity = 99 end
-    local reagentLines = LeafVE:GetWorkOrderReagentLines(selectedRecipe, selectedQuantity)
-    popup.selectedText:SetText("|cFFFFD700Selected:|r " .. tostring(selectedRecipe.name))
-    local idLabel = selectedRecipe.itemId and ("Item ID " .. tostring(selectedRecipe.itemId))
-      or (selectedRecipe.spellId and ("Spell ID " .. tostring(selectedRecipe.spellId)))
-      or (isGatheringSelection and "Custom Request")
-      or "No ID"
-    popup.detailText:SetText(tostring(selectedRecipe.profession or "") .. "  |  " .. idLabel .. "  |  " .. GetWorkOrderMatsTag(popup.matsMode, selectedRecipe.profession))
+    local reagentBlock = LeafVE:GetWorkOrderReagentBlockText(selectedRecipe, selectedQuantity, 8)
+    local reagentEntries = LeafVE:GetWorkOrderReagentEntries(selectedRecipe, selectedQuantity)
+    local metaText = LeafVE:GetWorkOrderRecipeMetaText(selectedRecipe)
+    if metaText == "" then
+      metaText = tostring(selectedRecipe.profession or "")
+    end
+    if popup.selectedIcon then
+      popup.selectedIcon:SetTexture(selectedRecipe.icon or LEAF_FALLBACK)
+    end
+    if popup.selectedIconBG then
+      popup.selectedIconBG:SetBackdropBorderColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.9)
+    end
+    popup.selectedText:SetText("|cFFFFD700" .. tostring(selectedRecipe.name or "Selected Craft") .. "|r")
+    popup.detailText:SetText(tostring(metaText) .. "  |  " .. GetWorkOrderMatsTag(popup.matsMode, selectedRecipe.profession))
     if LeafVE:IsGatheringWorkOrderProfession(selectedRecipe.profession) and popup.reagentsText then
-      popup.reagentsText:SetText("Gather " .. tostring(selectedQuantity) .. "x " .. tostring(selectedRecipe.name or "materials") .. " and deliver them to the requester.")
+      HideWorkOrderSelectionReagentRows(popup)
+      popup.reagentsText:Show()
+      popup.reagentsText:SetText(
+        "|cFFCCCCCCGather exactly |r|cFFFFD700" .. tostring(selectedQuantity) .. "x|r|cFFCCCCCC " ..
+        tostring(selectedRecipe.name or "materials") .. " and deliver them to the requester.|r"
+      )
       if popup.reagentsLabel then
         popup.reagentsLabel:SetText("Request")
       end
-    elseif type(reagentLines) == "table" and table.getn(reagentLines) > 0 and popup.reagentsText then
-      popup.reagentsText:SetText(table.concat(reagentLines, "\n"))
+    elseif type(reagentEntries) == "table" and table.getn(reagentEntries) > 0 then
+      local shownAny = SetWorkOrderSelectionReagentRows(popup, reagentEntries)
       if popup.reagentsLabel then
-        popup.reagentsLabel:SetText(selectedQuantity > 1 and ("Reagents (x" .. tostring(selectedQuantity) .. ")") or "Reagents")
+        popup.reagentsLabel:SetText(selectedQuantity > 1 and ("Exact Materials (x" .. tostring(selectedQuantity) .. ")") or "Exact Materials")
+      end
+      if shownAny and popup.reagentsText then
+        local remainingCount = table.getn(reagentEntries) - (tonumber(popup.reagentRowCapacity) or table.getn(popup.reagentRows or {}))
+        if remainingCount > 0 then
+          popup.reagentsText:SetText("|cFF888888+" .. tostring(remainingCount) .. " more material" .. (remainingCount ~= 1 and "s" or "") .. " for this craft.|r")
+          popup.reagentsText:Show()
+        else
+          popup.reagentsText:SetText("")
+          popup.reagentsText:Hide()
+        end
+      elseif popup.reagentsText then
+        HideWorkOrderSelectionReagentRows(popup)
+        popup.reagentsText:SetText("|cFFCCCCCC" .. tostring(reagentBlock or "") .. "|r")
+        popup.reagentsText:Show()
       end
     elseif popup.reagentsText then
-      popup.reagentsText:SetText("|cFF888888No reagent data available for this recipe.|r")
+      HideWorkOrderSelectionReagentRows(popup)
+      popup.reagentsText:Show()
+      popup.reagentsText:SetText("|cFF888888No reagent data is cached for this recipe yet.|r")
       if popup.reagentsLabel then
-        popup.reagentsLabel:SetText("Reagents")
+        popup.reagentsLabel:SetText("Exact Materials")
       end
     end
     popup.submitBtn:Enable()
   else
     popup.selectedText:SetText("|cFF888888No recipe selected|r")
     popup.detailText:SetText("")
+    if popup.selectedIcon then
+      popup.selectedIcon:SetTexture(LEAF_FALLBACK)
+    end
+    HideWorkOrderSelectionReagentRows(popup)
     if popup.reagentsText then
       popup.reagentsText:SetText("")
+      popup.reagentsText:Hide()
     end
     if popup.reagentsLabel then
-      popup.reagentsLabel:SetText("Reagents")
+      popup.reagentsLabel:SetText("Exact Materials")
     end
     popup.submitBtn:Disable()
   end
@@ -21736,12 +26832,12 @@ function LeafVE.UI:RefreshWorkOrderLiveView(playerName, popup)
 
   LeafVE:RequestWorkOrderSync(false)
 
-  popup.subtitleText:SetText("Guild-wide live work orders")
+  popup.subtitleText:SetText("Watch open and pending requests across the village")
   if popup.ordersTitle then
     popup.ordersTitle:SetText("|cFFFFD700Live Orders|r")
   end
   if popup.ordersHint then
-    popup.ordersHint:SetText("|cFFAAAAAACrafted and profession-based requests are fulfilled by matching designations.\nFarming requests can be picked up by anyone, and you can use |cFFFFD700Partial|r to reserve only part of a request while the rest stays live.|r")
+    popup.ordersHint:SetText("|cFFAAAAAACrafted and profession-based requests are fulfilled by matching saved professions.\nFarming requests can be picked up by anyone, and you can use |cFFFFD700Partial|r to reserve only part of a request while the rest stays live.|r")
   end
 
   local me = ShortName(UnitName("player"))
@@ -21803,11 +26899,12 @@ function LeafVE.UI:RefreshWorkOrderLiveView(playerName, popup)
       btn.icon:SetTexture(order.icon or LEAF_FALLBACK)
       btn.text:SetText("|cFFFFD700" .. tostring(order.recipeName or "Work Order") .. "|r")
       local matsLine = GetWorkOrderMatsLine(order.matsMode, order.requester, order.profession)
+      local materialsText = LeafVE:GetWorkOrderListMaterialsText(order, order.quantity or 1, 2)
       btn.detailText:SetText(
         "Requester: " .. tostring(order.requester or "Unknown") ..
         "  |  " .. tostring(order.profession or "Unknown") ..
         "  |  " .. GetWorkOrderQuantitySummary(order) ..
-        "\n" .. matsLine
+        "  |  " .. FormatWorkOrderTipText(order.tipCopper)
       )
       SetWorkOrderRowTipDisplay(btn, order.tipCopper)
 
@@ -21832,7 +26929,7 @@ function LeafVE.UI:RefreshWorkOrderLiveView(playerName, popup)
           btn.secondaryActionType = "partial_fulfill"
         end
         if requiresDesignation then
-          btn.statusText:SetText("|cFF88FF88Eligible to fulfill.|r Your designation matches this order.")
+          btn.statusText:SetText("|cFF88FF88Eligible to fulfill.|r Your saved professions match this order.")
         else
           btn.statusText:SetText("|cFF88FF88Eligible to fulfill.|r This farming request can be claimed by anyone.")
         end
@@ -21844,10 +26941,13 @@ function LeafVE.UI:RefreshWorkOrderLiveView(playerName, popup)
         end
       else
         if requiresDesignation then
-          btn.statusText:SetText("|cFFAAAAAARequires designated " .. tostring(order.profession or "profession") .. " to fulfill.|r")
+          btn.statusText:SetText("|cFFAAAAAARequires a saved " .. tostring(order.profession or "profession") .. " profession to fulfill.|r")
         else
           btn.statusText:SetText("|cFFAAAAAAOpen farming request.|r Anyone can pick this up.")
         end
+      end
+      if btn.reagentText then
+        btn.reagentText:SetText("|cFF88CCFF" .. tostring(matsLine) .. "|r\n" .. tostring(materialsText or ""))
       end
 
       if btn.idText then
@@ -21887,6 +26987,9 @@ function LeafVE.UI:RefreshWorkOrderLiveView(playerName, popup)
       btn.text:SetWidth(textWidth)
       btn.detailText:SetWidth(textWidth)
       btn.statusText:SetWidth(textWidth)
+      if btn.reagentText then
+        btn.reagentText:SetWidth(textWidth)
+      end
       btn:Show()
     else
       btn.order = nil
@@ -21904,6 +27007,9 @@ function LeafVE.UI:RefreshWorkOrderLiveView(playerName, popup)
       if btn.idText then
         btn.idText:SetText("")
         btn.idText:Hide()
+      end
+      if btn.reagentText then
+        btn.reagentText:SetText("")
       end
       btn:Hide()
     end
@@ -21936,7 +27042,7 @@ function LeafVE.UI:RefreshWorkOrderOrdersView(playerName, popup)
 
   LeafVE:RequestWorkOrderSync(false)
 
-  popup.subtitleText:SetText("Manage your requested work orders")
+  popup.subtitleText:SetText("Track your requests from posting to verification")
   if popup.ordersTitle then
     popup.ordersTitle:SetText("|cFFFFD700My Orders|r")
   end
@@ -22002,11 +27108,12 @@ function LeafVE.UI:RefreshWorkOrderOrdersView(playerName, popup)
       btn.icon:SetTexture(order.icon or LEAF_FALLBACK)
       btn.text:SetText("|cFFFFD700" .. tostring(order.recipeName or "Work Order") .. "|r")
       local matsLine = GetWorkOrderMatsLine(order.matsMode, order.requester, order.profession)
+      local materialsText = LeafVE:GetWorkOrderListMaterialsText(order, order.quantity or 1, 2)
       btn.detailText:SetText(
         "Requester: " .. tostring(order.requester or "Unknown") ..
         "  |  " .. tostring(order.profession or "Unknown") ..
         "  |  " .. GetWorkOrderQuantitySummary(order) ..
-        "\n" .. matsLine
+        "  |  " .. FormatWorkOrderTipText(order.tipCopper)
       )
       SetWorkOrderRowTipDisplay(btn, order.tipCopper)
       if status == "pending" then
@@ -22059,6 +27166,9 @@ function LeafVE.UI:RefreshWorkOrderOrdersView(playerName, popup)
         btn.secondaryActionBtn:SetText("")
         btn.secondaryActionBtn:Hide()
       end
+      if btn.reagentText then
+        btn.reagentText:SetText("|cFF88CCFF" .. tostring(matsLine) .. "|r\n" .. tostring(materialsText or ""))
+      end
       local reservedRight = ClampWorkOrderTipCopper(order.tipCopper) > 0 and 118 or 18
       if btn.actionType or btn.secondaryActionType then
         reservedRight = math.max(reservedRight, 96)
@@ -22067,6 +27177,9 @@ function LeafVE.UI:RefreshWorkOrderOrdersView(playerName, popup)
       btn.text:SetWidth(textWidth)
       btn.detailText:SetWidth(textWidth)
       btn.statusText:SetWidth(textWidth)
+      if btn.reagentText then
+        btn.reagentText:SetWidth(textWidth)
+      end
       btn:Show()
     else
       btn.order = nil
@@ -22084,6 +27197,9 @@ function LeafVE.UI:RefreshWorkOrderOrdersView(playerName, popup)
       if btn.idText then
         btn.idText:SetText("")
         btn.idText:Hide()
+      end
+      if btn.reagentText then
+        btn.reagentText:SetText("")
       end
       btn:Hide()
     end
@@ -22109,7 +27225,7 @@ end
 
 function LeafVE.UI:RefreshWorkOrderPopup(playerName)
   if not self.workOrderPopup then return end
-  playerName = ShortName(playerName)
+  playerName = ShortName(playerName or UnitName("player"))
   if not playerName then return end
 
   local popup = self.workOrderPopup
@@ -22128,10 +27244,14 @@ function LeafVE.UI:RefreshWorkOrderPopup(playerName)
   end
 
   if not popup.viewMode or popup.viewMode == "" then
-    popup.viewMode = "browse"
+    popup.viewMode = "live"
   end
 
-  popup.titleText:SetText("Work Orders")
+  if popup.isEmbeddedWorkOrderView then
+    popup.titleText:SetText("Shinobi Orders Board")
+  else
+    popup.titleText:SetText("Work Orders")
+  end
   UpdateWorkOrderModeButtonVisual(popup.browseModeBtn, popup.viewMode == "browse")
   UpdateWorkOrderModeButtonVisual(popup.liveModeBtn, popup.viewMode == "live")
   UpdateWorkOrderModeButtonVisual(popup.ordersModeBtn, popup.viewMode == "orders")
@@ -22147,6 +27267,10 @@ function LeafVE.UI:RefreshWorkOrderPopup(playerName)
     self:RefreshWorkOrderOrdersView(playerName, popup)
   else
     self:RefreshWorkOrderBrowseView(playerName, popup, LeafVE:EnsureWorkOrderCatalog())
+  end
+
+  if popup.isEmbeddedWorkOrderView and self.RefreshEmbeddedWorkOrderOverview then
+    self:RefreshEmbeddedWorkOrderOverview(popup, playerName)
   end
 end
 
@@ -22566,6 +27690,9 @@ function LeafVE.UI:CreateGuildBankPopup()
     this.offset = 0
   end)
 
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.guildBankPopup = popup
 end
 
@@ -22599,7 +27726,7 @@ function LeafVE.UI:RefreshGuildBankInventoryView(popup, snapshot, ownerName, upd
   local categoryMode = popup.itemCategoryMode or "normal"
   if popup.hintText then
     if categoryMode == "high_value" then
-      popup.hintText:SetText("|cFFAAAAAAHigh Value items can only be requested by Jonin, Anbu, Sannin, and Hokage. Anbu / Sannin / Hokage can mark items into this category.|r")
+popup.hintText:SetText("|cFFAAAAAAHigh Value items can only be requested by Jonin, Anbu, Sannin, and Hokage. Kage / Hokage can mark items into this category.|r")
     else
       popup.hintText:SetText("|cFFAAAAAANormal guild bank items can be requested by any guild member. Switch to High Value for restricted items.|r")
     end
@@ -22791,7 +27918,7 @@ function LeafVE.UI:RefreshGuildBankRequestsView(popup)
   if popup.requestsHintText then
     popup.requestsHintText:SetText(
       "|cFFAAAAAAGuild bank requests are limited to |cFFFFD7003 per week|r per player and are reviewed on the weekly send-out timer. " ..
-      "High Value requests are reserved for |cFFFFD700Jonin, Anbu, Sannin, and Hokage|r, and only |cFFFFD700Anbu / Sannin / Hokage|r can designate items into that category. " ..
+"High Value requests are reserved for |cFFFFD700Jonin, Anbu, Sannin, and Hokage|r, and only |cFFFFD700Kage / Hokage|r can designate items into that category. " ..
       "Requesters can cancel their own entries, and the guild bank alt or admin ranks can mark them filled. " ..
       "Next weekly reset: |cFFFFD700" .. tostring(resetText) .. "|r.|r"
     )
@@ -22961,9 +28088,9 @@ function LeafVE.UI:RefreshGuildBankPopup(skipRequest)
   end
   if popup.ownerStatusText then
     if isAdmin then
-      popup.ownerStatusText:SetText("|cFF888888Anbu / Sannin / Hokage can switch which guild bank alt is synced.|r")
+popup.ownerStatusText:SetText("|cFF888888Kage / Hokage can switch which guild bank alt is synced.|r")
     else
-      local statusLine = "|cFF888888Only Anbu / Sannin / Hokage can change the designated guild bank alt.|r"
+local statusLine = "|cFF888888Only Kage / Hokage can change the designated guild bank alt.|r"
       if config.updatedBy and config.updatedBy ~= "" then
         statusLine = statusLine .. " |cFF88CCFFSet by " .. tostring(config.updatedBy) .. ".|r"
       end
@@ -24561,9 +29688,9 @@ function LeafVE.UI:RefreshGuildBankPanel(skipRequest)
   end
   if panel.ownerStatusText then
     if isAdmin then
-      panel.ownerStatusText:SetText("|cFF888888Anbu / Sannin / Hokage can switch which guild bank alt is synced.|r")
+panel.ownerStatusText:SetText("|cFF888888Kage / Hokage can switch which guild bank alt is synced.|r")
     else
-      local statusLine = "|cFF888888Only Anbu / Sannin / Hokage can change the designated guild bank alt.|r"
+local statusLine = "|cFF888888Only Kage / Hokage can change the designated guild bank alt.|r"
       if config.updatedBy and config.updatedBy ~= "" then
         statusLine = statusLine .. " |cFF88CCFFSet by " .. tostring(config.updatedBy) .. ".|r"
       end
@@ -24838,57 +29965,19 @@ function LeafVE.UI:CreateAchievementListPopup()
   -- Achievement entries table
   popup.achEntries = {}
   
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
   self.achPopup = popup
 end
 
 function LeafVE.UI:RefreshAchievementPopup(playerName)
   if not self.achPopup then return end
+  self.achPopup.playerName = playerName
   
-  self.achPopup.titleText:SetText(playerName.."'s Achievements")  -- ← Change this line
+  self.achPopup.titleText:SetText(playerName.."'s Achievements")  -- Ã¢â€ Â Change this line
   
-  local achievements = {}
-  
-  if LeafVE_AchTest_DB and LeafVE_AchTest_DB.achievements and LeafVE_AchTest_DB.achievements[playerName] then
-    local playerAchievements = LeafVE_AchTest_DB.achievements[playerName]
-    
-    for achId, achData in pairs(playerAchievements) do
-      if type(achData) == "table" and achData.points and achData.timestamp then
-        -- Get proper name, icon, and description from achievement addon metadata
-        local meta = nil
-        if LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta then
-          meta = LeafVE_AchTest.GetAchievementMeta(achId)
-        end
-        local displayName = nil
-        if meta and meta.name then
-          displayName = meta.name
-        else
-          -- Fallback: convert ID to title case
-          displayName = achId
-          displayName = string.gsub(displayName, "_", " ")
-          displayName = string.gsub(displayName, "(%a)([%w_']*)", function(first, rest)
-            return string.upper(first)..string.lower(rest)
-          end)
-        end
-        local displayIcon = (meta and meta.icon) or GetAchievementIcon(achId)
-        local displayDesc = (meta and meta.desc) or ("Completed on "..date("%m/%d/%Y", achData.timestamp))
-        
-        table.insert(achievements, {
-          id = achId,
-          name = displayName,
-          desc = displayDesc,
-          icon = displayIcon,
-          points = achData.points,
-          completed = true,
-          timestamp = achData.timestamp
-        })
-      end
-    end
-  end
-  
-  -- Sort by most recent
-  table.sort(achievements, function(a, b)
-    return a.timestamp > b.timestamp
-  end)
+  local achievements = LeafVE:GetAchievementEntriesForPlayer(playerName)
   
   -- Clear previous entries
   for i = 1, table.getn(self.achPopup.achEntries) do
@@ -24966,13 +30055,11 @@ function LeafVE.UI:RefreshAchievementPopup(playerName)
         bg:SetVertexColor(0.1, 0.1, 0.1, 0.3)
         entry.bg = bg
 
-        -- Tooltip — same style as Badge tooltip
+        -- Tooltip Ã¢â‚¬â€ same style as Badge tooltip
         entry:EnableMouse(true)
         entry:SetScript("OnEnter", function()
           if not this.achId then return end
-          -- Get real achievement metadata from the achievement addon if available
-          local meta = LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta and
-                       LeafVE_AchTest.GetAchievementMeta(this.achId)
+          local meta = LeafVE:GetAchievementMeta(this.achId)
           local achName   = meta and meta.name     or this.achDisplayName
           local achDesc   = meta and meta.desc     or ""
           local achCat    = meta and meta.category or "Achievement"
@@ -25065,7 +30152,7 @@ function BuildMyPanel(panel)
   -- Block header background
   local headerBG = panel:CreateTexture(nil, "BACKGROUND")
   headerBG:SetPoint("TOP", panel, "TOP", -15, -10)
-  headerBG:SetWidth(420)  -- ← NARROWER (was 500)
+  headerBG:SetWidth(420)  -- Ã¢â€ Â NARROWER (was 500)
   headerBG:SetHeight(50)
   headerBG:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
   headerBG:SetVertexColor(0.15, 0.15, 0.18, 0.9)
@@ -25173,7 +30260,7 @@ function BuildMyPanel(panel)
   seasonRewards:SetPoint("TOPLEFT", seasonRewardsLabel, "BOTTOMLEFT", 0, -4)
   seasonRewards:SetWidth(maxWidth)
   seasonRewards:SetJustifyH("LEFT")
-  seasonRewards:SetText("")
+  seasonRewards:SetText("|cFFFFD700Temporarily Deactivated|r")
   panel.seasonRewards = seasonRewards
   
   -- Week Countdown (styled like other stats) - MOVE TO RIGHT SIDE
@@ -25210,40 +30297,24 @@ function BuildMyPanel(panel)
   weekCountdown:ClearAllPoints()
   weekCountdown:SetPoint("TOPLEFT", weekCountdownLabel, "BOTTOMLEFT", 0, -5)
 
-  local raidTimersLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  raidTimersLabel:SetPoint("TOPLEFT", seasonRewards, "BOTTOMLEFT", 0, -15)
-  raidTimersLabel:SetText("|cFF2DD35CRaid Reset Timers|r")
+  local messageOfDayLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  messageOfDayLabel:SetPoint("TOPLEFT", seasonRewards, "BOTTOMLEFT", 0, -15)
+  messageOfDayLabel:SetText("|cFF2DD35CMessage of the Day|r")
 
-  panel.raidTimerLeftEntries = {}
-  panel.raidTimerRightEntries = {}
+  local messageOfDayText = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  messageOfDayText:SetPoint("TOPLEFT", messageOfDayLabel, "BOTTOMLEFT", 0, -8)
+  messageOfDayText:SetWidth(460)
+  messageOfDayText:SetJustifyH("LEFT")
+  messageOfDayText:SetJustifyV("TOP")
+  messageOfDayText:SetText("")
+  panel.messageOfDayText = messageOfDayText
 
-  local previousLeft = nil
-  local previousRight = nil
-  for i = 1, 3 do
-    local leftEntry = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    if not previousLeft then
-      leftEntry:SetPoint("TOPLEFT", raidTimersLabel, "BOTTOMLEFT", 0, -12)
-    else
-      leftEntry:SetPoint("TOPLEFT", previousLeft, "BOTTOMLEFT", 0, -4)
-    end
-    leftEntry:SetWidth(185)
-    leftEntry:SetJustifyH("LEFT")
-    leftEntry:SetText("Loading...")
-    panel.raidTimerLeftEntries[i] = leftEntry
-    previousLeft = leftEntry
-
-    local rightEntry = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    if not previousRight then
-      rightEntry:SetPoint("TOPLEFT", leftEntry, "TOPRIGHT", 70, 0)
-    else
-      rightEntry:SetPoint("TOPLEFT", previousRight, "BOTTOMLEFT", 0, -4)
-    end
-    rightEntry:SetWidth(185)
-    rightEntry:SetJustifyH("LEFT")
-    rightEntry:SetText("Loading...")
-    panel.raidTimerRightEntries[i] = rightEntry
-    previousRight = rightEntry
-  end
+  local messageOfDayAttribution = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  messageOfDayAttribution:SetPoint("TOPLEFT", messageOfDayText, "BOTTOMLEFT", 0, -6)
+  messageOfDayAttribution:SetWidth(460)
+  messageOfDayAttribution:SetJustifyH("LEFT")
+  messageOfDayAttribution:SetText("|cFF2DD35C- Naruto Uzumaki|r")
+  panel.messageOfDayAttribution = messageOfDayAttribution
 
 local legend = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   legend:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 12, 12)
@@ -25281,7 +30352,7 @@ function BuildShoutoutsPanel(panel)
   local usageText = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   usageText:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -80)
   local initialMaxShoutouts = LeafVE:GetShoutoutDailyLimitForPlayer(UnitName("player"))
-  usageText:SetText("Shoutouts remaining today: " .. tostring(initialMaxShoutouts) .. " / " .. tostring(initialMaxShoutouts))
+  usageText:SetText(LeafVE:GetShoutoutUsageStatusText(0, initialMaxShoutouts))
   panel.usageText = usageText
   
   local targetLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -25913,13 +30984,13 @@ function LeafVE.UI:RefreshLeaderboard(panelName)
         
         local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         nameText:SetPoint("LEFT", rank, "RIGHT", 40, 0)
-        nameText:SetWidth(150)
+        nameText:SetWidth(240)
         nameText:SetJustifyH("LEFT")
         frame.nameText = nameText
         
         local pointsText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         pointsText:SetPoint("LEFT", nameText, "RIGHT", 10, 0)
-        pointsText:SetWidth(250)
+        pointsText:SetWidth(160)
         pointsText:SetJustifyH("LEFT")
         frame.pointsText = pointsText
         
@@ -25977,12 +31048,12 @@ function LeafVE.UI:RefreshLeaderboard(panelName)
         frame.rank:SetTextColor(rankColor[1], rankColor[2], rankColor[3])
       end
       
-      local classColor = CLASS_COLORS[class] or {1, 1, 1}
-      frame.nameText:SetText(leader.name)
-      frame.nameText:SetTextColor(classColor[1], classColor[2], classColor[3])
+      local class = string.upper(leader.class or "UNKNOWN")
+      frame.nameText:SetText(LeafVE:BuildStyledPlayerName(leader.name, class))
+      frame.nameText:SetTextColor(1, 1, 1)
       frame.playerName = leader.name
       
-      frame.pointsText:SetText(string.format("|cFFFFD700%d pts|r  (L:%d G:%d S:%d)", leader.total, leader.L, leader.G, leader.S))
+      frame.pointsText:SetText(string.format("|cFFFFD700%s pts|r  (L:%s G:%s S:%s)", LeafVE:FormatPointAmount(leader.total), LeafVE:FormatPointAmount(leader.L), LeafVE:FormatPointAmount(leader.G), LeafVE:FormatPointAmount(leader.S)))
       
       frame:Show()
       yOffset = yOffset - entryHeight - 8
@@ -26029,7 +31100,7 @@ function BuildRosterPanel(panel)
   
   -- SEARCH BAR
   local searchLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  searchLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -75)  -- ← MOVED DOWN (was -45)
+  searchLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -75)  -- Ã¢â€ Â MOVED DOWN (was -45)
   searchLabel:SetText("Search:")
   
   local searchBox = CreateFrame("EditBox", nil, panel)
@@ -26083,7 +31154,7 @@ function BuildRosterPanel(panel)
   
   -- SCROLL FRAME (moved down for search bar)
   local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
-  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -105)  -- ← MOVED DOWN (was -75)
+  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -105)  -- Ã¢â€ Â MOVED DOWN (was -75)
   scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
   scrollFrame:EnableMouse(true)
   scrollFrame:EnableMouseWheel(true)
@@ -26216,9 +31287,10 @@ function LeafVE.UI:RefreshRoster()
     local class = string.upper(member.class or "UNKNOWN")
     local classColor = CLASS_COLORS[class] or {1, 1, 1}
     
-    local onlineIndicator = member.online and "|cFF00FF00●|r " or "|cFF888888●|r "
+    local onlineIndicator = member.online and "|cFF00FF00Ã¢â€”Â|r " or "|cFF888888Ã¢â€”Â|r "
     
-    btn.text:SetText(string.format("%s%s - Lvl %s %s", onlineIndicator, member.name, tostring(member.level), member.rank))
+    local onlineIndicatorText = member.online and "|cFF33FF33[Online]|r " or "|cFF888888[Offline]|r "
+    btn.text:SetText(string.format("%s%s - Lvl %s %s", onlineIndicatorText, member.name, tostring(member.level), member.rank))
     btn.text:SetTextColor(classColor[1], classColor[2], classColor[3])
     
 btn.playerName = member.name
@@ -26386,7 +31458,7 @@ function BuildHistoryPanel(panel)
   subtitle:SetText("|cFF888888Complete log of all your point transactions|r")
   
 local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
-  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -75)  -- ← CHANGED from -45
+  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -75)  -- Ã¢â€ Â CHANGED from -45
   scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
   scrollFrame:EnableMouse(true)
   scrollFrame:EnableMouseWheel(true)
@@ -26406,7 +31478,7 @@ local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
   end)
   
   local scrollBar = CreateFrame("Slider", nil, panel)
-  scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -75)  -- ← CHANGED from -45
+  scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -75)  -- Ã¢â€ Â CHANGED from -45
   scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 12)
   scrollBar:SetWidth(16)
   scrollBar:SetOrientation("VERTICAL")
@@ -26470,11 +31542,11 @@ function BuildBadgesPanel(panel)
   
   local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   title:SetPoint("TOP", headerBG, "TOP", 0, -10)
-  title:SetText("|cFFFFD700Milestone Badges|r")
+  title:SetText("|cFFFFD700Badge Collection|r")
   
   local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   subtitle:SetPoint("TOP", title, "BOTTOM", 0, -3)
-  subtitle:SetText("|cFF888888Earn badges by completing milestones and challenges|r")
+  subtitle:SetText("|cFF888888Browse milestone, recognition, grouping, order, PvP, raid, and loyalty badges|r")
 
   local summary = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   summary:SetPoint("TOP", subtitle, "BOTTOM", 0, -2)
@@ -26643,6 +31715,123 @@ function BuildAchievementsPanel(panel)
   panel.achEntries = {}
 end
 
+function BuildTitlesPanel(panel)
+  local headerBG = panel:CreateTexture(nil, "BACKGROUND")
+  headerBG:SetPoint("TOP", panel, "TOP", -15, -10)
+  headerBG:SetWidth(420)
+  headerBG:SetHeight(50)
+  headerBG:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  headerBG:SetVertexColor(0.15, 0.15, 0.18, 0.9)
+
+  local accentTop = panel:CreateTexture(nil, "BORDER")
+  accentTop:SetPoint("TOPLEFT", headerBG, "TOPLEFT", 0, 0)
+  accentTop:SetPoint("TOPRIGHT", headerBG, "TOPRIGHT", 0, 0)
+  accentTop:SetHeight(3)
+  accentTop:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accentTop:SetVertexColor(THEME.gold[1], THEME.gold[2], THEME.gold[3], 1)
+
+  local h = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  h:SetPoint("TOP", headerBG, "TOP", 0, -10)
+  h:SetText("|cFFFFD700Titles of the Leaf|r")
+
+  local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  subtitle:SetPoint("TOP", h, "BOTTOM", 0, -3)
+  subtitle:SetText("|cFF888888Equip a title for chat, leaderboards, and your dossier|r")
+
+  local currentTitleText = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  currentTitleText:SetPoint("TOPLEFT", panel, "TOPLEFT", 16, -74)
+  currentTitleText:SetWidth(315)
+  currentTitleText:SetJustifyH("LEFT")
+  currentTitleText:SetText("|cFFAAAAAAEquipped Title: None|r")
+  panel.currentTitleText = currentTitleText
+
+  local currentTitleSource = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  currentTitleSource:SetPoint("TOPLEFT", currentTitleText, "BOTTOMLEFT", 0, -4)
+  currentTitleSource:SetWidth(315)
+  currentTitleSource:SetJustifyH("LEFT")
+  currentTitleSource:SetText("|cFF777777Unlock titles by earning special badges.|r")
+  panel.currentTitleSource = currentTitleSource
+
+  local clearBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+  clearBtn:SetWidth(110)
+  clearBtn:SetHeight(22)
+  clearBtn:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -18, -76)
+  clearBtn:SetText("Clear Title")
+  SkinButtonAccent(clearBtn)
+  clearBtn:SetScript("OnClick", function()
+    local ok, err = LeafVE:SetEquippedTitleForSelf(nil)
+    if not ok and err then
+      Print(err)
+    end
+  end)
+  panel.clearTitleBtn = clearBtn
+
+  local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
+  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -120)
+  scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
+  scrollFrame:EnableMouse(true)
+  scrollFrame:EnableMouseWheel(true)
+
+  local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+  scrollChild:SetWidth(430)
+  scrollChild:SetHeight(1)
+  scrollFrame:SetScrollChild(scrollChild)
+
+  local scrollBar = CreateFrame("Slider", nil, panel)
+  scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -120)
+  scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 12)
+  scrollBar:SetWidth(16)
+  scrollBar:SetOrientation("VERTICAL")
+  scrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+  scrollBar:SetMinMaxValues(0, 100)
+  scrollBar:SetValue(0)
+
+  local thumb = scrollBar:GetThumbTexture()
+  thumb:SetWidth(16)
+  thumb:SetHeight(24)
+
+  scrollBar:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 8, edgeSize = 8,
+    insets = {left = 2, right = 2, top = 2, bottom = 2}
+  })
+  scrollBar:SetBackdropColor(0, 0, 0, 0.3)
+  scrollBar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+
+  scrollBar:SetScript("OnValueChanged", function()
+    local value = this:GetValue()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    if maxScroll > 0 then
+      scrollFrame:SetVerticalScroll((value / 100) * maxScroll)
+    end
+  end)
+
+  scrollFrame:SetScript("OnVerticalScroll", function()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    if maxScroll > 0 then
+      local current = scrollFrame:GetVerticalScroll()
+      scrollBar:SetValue((current / maxScroll) * 100)
+    else
+      scrollBar:SetValue(0)
+    end
+  end)
+
+  scrollFrame:SetScript("OnMouseWheel", function()
+    local current = scrollFrame:GetVerticalScroll()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    local newScroll = current - (arg1 * 40)
+    if newScroll < 0 then newScroll = 0 end
+    if newScroll > maxScroll then newScroll = maxScroll end
+    scrollFrame:SetVerticalScroll(newScroll)
+  end)
+
+  panel.scrollFrame = scrollFrame
+  panel.scrollChild = scrollChild
+  panel.scrollBar = scrollBar
+  panel.titleRows = {}
+end
+
 function MakeToggleButton(parent, label, yPos, getOpt, setOpt)
   local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   btn:SetWidth(80)
@@ -26787,7 +31976,7 @@ function BuildOptionsPanel(panel)
 
   local uiHint = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   uiHint:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, yBase)
-  uiHint:SetText("|cFF888888Drag the bottom-right corner or use these live controls. Changes apply instantly.|r")
+  uiHint:SetText("|cFF888888Drag the bottom-right corner or use these live controls. Width and height resize the frame; scale shrinks the entire UI together. Changes apply instantly.|r")
   uiHint:SetWidth(430)
   uiHint:SetJustifyH("LEFT")
   yBase = yBase - 36
@@ -26818,6 +32007,24 @@ function BuildOptionsPanel(panel)
     LeafVE.uiMaxHeight,
     25)
   panel.uiHeightSync = heightSync
+  yBase = yBase - gap
+
+  local _, _, scaleSync = MakeNumberStepper(
+    subFrame,
+    "Scale",
+    yBase,
+    function() return LeafVE_DB.ui.scale or LeafVE.uiDefaultScale end,
+    function(v)
+      LeafVE:ApplyUIScale(v)
+    end,
+    LeafVE.uiMinScale,
+    LeafVE.uiMaxScale,
+    0.05,
+    function(v)
+      local percent = math.floor(((tonumber(v) or LeafVE.uiDefaultScale) * 100) + 0.5)
+      return "|cFF"..RGBToHex(THEME.gold[1], THEME.gold[2], THEME.gold[3])..tostring(percent).."%|r"
+    end)
+  panel.uiScaleSync = scaleSync
   yBase = yBase - gap
 
   local resetSizeBtn = CreateFrame("Button", nil, subFrame, "UIPanelButtonTemplate")
@@ -26865,12 +32072,13 @@ function LeafVE.UI:RefreshOptions()
   if not self.panels or not self.panels.options then return end
   if self.panels.options.uiWidthSync then self.panels.options.uiWidthSync() end
   if self.panels.options.uiHeightSync then self.panels.options.uiHeightSync() end
+  if self.panels.options.uiScaleSync then self.panels.options.uiScaleSync() end
 end
 
 -------------------------------------------------
--- ADMIN TAB PANEL (Anbu / Sannin / Hokage only)
+-- ADMIN TAB PANEL (Kage / Hokage only)
 -------------------------------------------------
-function MakeNumberStepper(parent, label, yPos, getVal, setVal, minVal, maxVal, stepVal)
+function MakeNumberStepper(parent, label, yPos, getVal, setVal, minVal, maxVal, stepVal, formatVal)
   local lbl = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   lbl:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, yPos)
   lbl:SetText(label)
@@ -26882,7 +32090,9 @@ function MakeNumberStepper(parent, label, yPos, getVal, setVal, minVal, maxVal, 
 
   local function Sync()
     local v = getVal()
-    if v == 0 then
+    if formatVal then
+      valText:SetText(formatVal(v))
+    elseif v == 0 then
       valText:SetText("|cFF"..RGBToHex(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3]).."unlimited|r")
     else
       valText:SetText("|cFF"..RGBToHex(THEME.gold[1], THEME.gold[2], THEME.gold[3])..tostring(v).."|r")
@@ -26945,7 +32155,7 @@ function BuildAdminPanel(panel)
 
   local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   subtitle:SetPoint("TOP", h, "BOTTOM", 0, -3)
-  subtitle:SetText("|cFF888888Anbu / Sannin / Hokage only|r")
+subtitle:SetText("|cFF888888Kage / Hokage only|r")
 
   local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
   scrollFrame:SetPoint("TOPLEFT",     panel, "TOPLEFT",     0, -68)
@@ -26994,15 +32204,16 @@ function BuildAdminPanel(panel)
   yBase = yBase - 24
 
   local ruleLines = {
-    "• Daily Login: 20 LP",
-    "• Quest Turn-In: 10 LP (requires guildie in group, no daily cap)",
-    "• Dungeon Boss: 10 LP  |  Raid Boss: 25 LP",
-    "• Dungeon Complete: 10 LP  |  Raid Complete: 25 LP",
-    "• Group Time: 5 LP per guildie every 60 min",
-    "• Shoutout: 10 LP (2 per day)",
-    "• Daily Total LP Cap: 700",
+    "Ã¢â‚¬Â¢ Daily Login: 20 LP",
+    "Ã¢â‚¬Â¢ Quest Turn-In: 10 LP (requires guildie in group, no daily cap)",
+    "Ã¢â‚¬Â¢ Dungeon Boss: 10 LP  |  Raid Boss: 25 LP",
+    "Ã¢â‚¬Â¢ Dungeon Complete: 10 LP  |  Raid Complete: 25 LP",
+    "Ã¢â‚¬Â¢ Group Time: 5 LP per guildie every 60 min",
+    "Ã¢â‚¬Â¢ Shoutout: 10 LP (2 per day)",
+    "Ã¢â‚¬Â¢ Daily Total LP Cap: 700",
   }
   ruleLines[3] = "* Dungeon Boss: 10 LP  |  Raid Boss: 25 LP  |  +5 LP per guildie"
+  ruleLines[6] = "* Shoutout: 10 LP  |  Akatsuki: 10 per day  |  Kage / Hokage: unlimited"
   for _, ruleText in ipairs(ruleLines) do
     local ruleFS = subFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ruleFS:SetPoint("TOPLEFT", subFrame, "TOPLEFT", 18, yBase)
@@ -27060,7 +32271,7 @@ function BuildAdminPanel(panel)
       local entry = sorted[i]
       if entry then
         local reward = rewards[i] or 0
-        table.insert(lines, string.format("%s: %s - %d LP (%dg reward)", ordinals[i], entry.name, entry.total, reward))
+        table.insert(lines, string.format("%s: %s - %s LP (%dg reward)", ordinals[i], entry.name, LeafVE:FormatPointAmount(entry.total), reward))
       else
         table.insert(lines, string.format("%s: ---", ordinals[i]))
       end
@@ -27089,7 +32300,7 @@ function BuildAdminPanel(panel)
     local lines = BuildStandingsLines()
     if InGuild() then
       for _, line in ipairs(lines) do
-        SendChatMessage(line, "GUILD")
+        LeafVE:SendSystemChatMessage(line, "GUILD")
       end
       Print("Weekly standings announced to guild!")
     else
@@ -27142,6 +32353,16 @@ function BuildAdminPanel(panel)
     LeafVE:AwardRandomBadge(me)
   end)
 
+  local resetMyBadgesBtn = CreateFrame("Button", nil, subFrame, "UIPanelButtonTemplate")
+  resetMyBadgesBtn:SetWidth(160)
+  resetMyBadgesBtn:SetHeight(22)
+  resetMyBadgesBtn:SetPoint("LEFT", randBadgeBtn, "RIGHT", 8, 0)
+  resetMyBadgesBtn:SetText("Reset My Badges")
+  SkinButtonAccent(resetMyBadgesBtn)
+  resetMyBadgesBtn:SetScript("OnClick", function()
+    StaticPopup_Show("LEAFVE_CONFIRM_RESET_MY_BADGES")
+  end)
+
   yBase = yBase - 38
 
   -- Divider above Danger Zone
@@ -27159,12 +32380,12 @@ function BuildAdminPanel(panel)
   dangerSection:SetText("|cFFFF4444Danger Zone|r")
   yBase = yBase - 28
 
-  -- "⚠ FULL DATA WIPE" button (official season reset — wipes ALL data)
+  -- "Ã¢Å¡Â  FULL DATA WIPE" button (official season reset Ã¢â‚¬â€ wipes ALL data)
   local fullWipeBtn = CreateFrame("Button", nil, subFrame, "UIPanelButtonTemplate")
   fullWipeBtn:SetWidth(240)
   fullWipeBtn:SetHeight(22)
   fullWipeBtn:SetPoint("TOPLEFT", subFrame, "TOPLEFT", 12, yBase)
-  fullWipeBtn:SetText("|cFFFF2222⚠ FULL DATA WIPE (Official Reset)|r")
+  fullWipeBtn:SetText("|cFFFF2222Ã¢Å¡Â  FULL DATA WIPE (Official Reset)|r")
   SkinButtonAccent(fullWipeBtn)
   fullWipeBtn:SetScript("OnEnter", function()
     GameTooltip:SetOwner(fullWipeBtn, "ANCHOR_RIGHT")
@@ -27476,7 +32697,7 @@ function BuildWorkOrderReputationPanel(panel)
   panel.repBreakdownInfoBtn = breakdownInfoBtn
 
   panel.repBreakdownRows = {}
-  for i = 1, 4 do
+  for i = 1, 5 do
     local row = CreateFrame("Frame", nil, leadersPane)
     row:SetWidth(248)
     row:SetHeight(18)
@@ -27499,6 +32720,7 @@ function BuildWorkOrderReputationPanel(panel)
   panel.repBreakdownRows[2].labelText:SetText("|cFFAAAAAABase Requester Rep|r")
   panel.repBreakdownRows[3].labelText:SetText("|cFFAAAAAACrafter Mats Bonus|r")
   panel.repBreakdownRows[4].labelText:SetText("|cFFAAAAAAFast Craft Bonus|r")
+  panel.repBreakdownRows[5].labelText:SetText("|cFFAAAAAADuty Bonus Rep|r")
 end
 
 function LeafVE.UI:RefreshWorkOrderReputationPanel()
@@ -27512,6 +32734,8 @@ function LeafVE.UI:RefreshWorkOrderReputationPanel()
   if panel.repPlayerLabel then
     if entry.name and me and Lower(entry.name) ~= Lower(me) then
       panel.repPlayerLabel:SetText("|cFFAAAAAAPlayer|r  " .. tostring(me or "Unknown") .. "  |  Rep Identity: " .. tostring(entry.name))
+    elseif (tonumber(entry.dutyBonusRep) or 0) > 0 then
+      panel.repPlayerLabel:SetText("|cFFAAAAAAPlayer|r  " .. tostring(me or "Unknown") .. "  |  Duty Bonus: +" .. tostring(entry.dutyBonusRep or 0) .. " REP")
     else
       panel.repPlayerLabel:SetText("|cFFAAAAAAPlayer|r  " .. tostring(me or "Unknown"))
     end
@@ -27658,6 +32882,7 @@ function LeafVE.UI:RefreshWorkOrderReputationPanel()
     panel.repBreakdownRows[2].valueText:SetText("|cFF88CC88+" .. tostring(tonumber(breakdown.baseRequesterRep) or 0) .. "|r")
     panel.repBreakdownRows[3].valueText:SetText("|cFF88CC88+" .. tostring(tonumber(breakdown.crafterMatsBonus) or 0) .. "|r")
     panel.repBreakdownRows[4].valueText:SetText("|cFF88CC88+" .. tostring(tonumber(breakdown.fastCraftBonus) or 0) .. "|r")
+    panel.repBreakdownRows[5].valueText:SetText("|cFF88CCFF+" .. tostring(tonumber(breakdown.dutyBonusRep) or 0) .. "|r")
   end
 end
 
@@ -27757,6 +32982,523 @@ function LeafVE:ShowMyDataResetConfirm()
   LeafVE._confirmMyDataResetFrame:Show()
 end
 
+function CreateAllianceGuildRowButton(parent)
+  local btn = CreateFrame("Button", nil, parent)
+  btn:SetWidth(120)
+  btn:SetHeight(28)
+  btn:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = false, tileSize = 8, edgeSize = 10,
+    insets = {left = 2, right = 2, top = 2, bottom = 2}
+  })
+  btn:SetBackdropColor(0.08, 0.08, 0.09, 0.92)
+  btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.75)
+
+  btn.nameText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  btn.nameText:SetPoint("TOPLEFT", btn, "TOPLEFT", 8, -6)
+  btn.nameText:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+  btn.nameText:SetJustifyH("LEFT")
+
+  btn.metaText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  btn.metaText:SetPoint("TOPLEFT", btn.nameText, "BOTTOMLEFT", 0, -2)
+  btn.metaText:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+  btn.metaText:SetJustifyH("LEFT")
+
+  btn:SetScript("OnEnter", function()
+    if not this.isSelected then
+      this:SetBackdropColor(0.13, 0.13, 0.16, 0.98)
+    end
+  end)
+  btn:SetScript("OnLeave", function()
+    if not this.isSelected then
+      this:SetBackdropColor(0.08, 0.08, 0.09, 0.92)
+    end
+  end)
+
+  return btn
+end
+
+function CreateAllianceChatMessageRow(parent)
+  local row = CreateFrame("Frame", nil, parent)
+  row:SetWidth(220)
+  row:SetHeight(34)
+
+  row.headerText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  row.headerText:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+  row.headerText:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.headerText:SetJustifyH("LEFT")
+
+  row.messageText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.messageText:SetPoint("TOPLEFT", row.headerText, "BOTTOMLEFT", 0, -2)
+  row.messageText:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.messageText:SetJustifyH("LEFT")
+
+  return row
+end
+
+function CreateAllianceRosterRow(parent)
+  local row = CreateFrame("Frame", nil, parent)
+  row:SetWidth(160)
+  row:SetHeight(22)
+
+  row.nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  row.nameText:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+  row.nameText:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.nameText:SetJustifyH("LEFT")
+
+  row.metaText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.metaText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -1)
+  row.metaText:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.metaText:SetJustifyH("LEFT")
+
+  return row
+end
+
+function LeafVE.UI:SetWelcomeSection(sectionKey)
+  if not self.panels or not self.panels.welcome then
+    return
+  end
+
+  local panel = self.panels.welcome
+  sectionKey = (sectionKey == "alliance") and "alliance" or "guide"
+  panel.activeWelcomeSection = sectionKey
+
+  EnsureDB()
+  LeafVE_DB.ui.welcomeSection = sectionKey
+
+  if panel.guidePane then
+    if sectionKey == "guide" then panel.guidePane:Show() else panel.guidePane:Hide() end
+  end
+  if panel.alliancePane then
+    if sectionKey == "alliance" then panel.alliancePane:Show() else panel.alliancePane:Hide() end
+  end
+  if panel.guideModeBtn then
+    UpdateWorkOrderModeButtonVisual(panel.guideModeBtn, sectionKey == "guide")
+  end
+  if panel.allianceModeBtn then
+    UpdateWorkOrderModeButtonVisual(panel.allianceModeBtn, sectionKey == "alliance")
+  end
+
+  if sectionKey == "alliance" then
+    self.lastAllianceOpenAt = Now()
+    self:RefreshAllianceWelcomePanel()
+  elseif self.UnloadAllianceWelcomeRoster then
+    self:UnloadAllianceWelcomeRoster(false)
+  end
+end
+
+function LeafVE.UI:RefreshAllianceWelcomeChatHistory(forceScrollToBottom)
+  if not self.panels or not self.panels.welcome then
+    return
+  end
+
+  local panel = self.panels.welcome
+  local chatHistory = panel.allianceChatHistory
+  if not chatHistory then
+    return
+  end
+
+  local chatLog = LeafVE:GetAllianceChatLog()
+  local shouldScrollToBottom = forceScrollToBottom and true or (chatHistory.AtBottom and chatHistory:AtBottom())
+
+  chatHistory:Clear()
+  if panel.allianceChatEmptyText then
+    if table.getn(chatLog) > 0 then
+      panel.allianceChatEmptyText:Hide()
+    else
+      panel.allianceChatEmptyText:Show()
+      panel.allianceChatEmptyText:SetText("|cFF777777Leaf Alliance messages will appear here once someone speaks in the shared channel.|r")
+    end
+  end
+
+  if table.getn(chatLog) == 0 then
+    return
+  end
+
+  for i = 1, table.getn(chatLog) do
+    local entry = chatLog[i]
+    chatHistory:AddMessage(
+      LeafVE:BuildAlliancePanelLine(
+        entry.author or "Unknown",
+        entry.message or "",
+        entry.timestamp,
+        entry.guildName
+      ),
+      1, 1, 1
+    )
+  end
+
+  if shouldScrollToBottom and chatHistory.ScrollToBottom then
+    chatHistory:ScrollToBottom()
+  end
+end
+
+function LeafVE.UI:UnloadAllianceWelcomeRoster(clearSelection)
+  if not self.panels or not self.panels.welcome then
+    return
+  end
+
+  local panel = self.panels.welcome
+  panel.allianceRosterLoadedGuild = nil
+  panel.allianceRosterOffset = 0
+  if clearSelection then
+    panel.selectedAllianceGuild = nil
+  end
+
+  for i = 1, table.getn(panel.allianceRosterRows or {}) do
+    if panel.allianceRosterRows[i] then
+      panel.allianceRosterRows[i]:Hide()
+    end
+  end
+
+  if panel.allianceRosterTitle then
+    panel.allianceRosterTitle:SetText("|cFFFFD700Alliance Roster|r")
+  end
+  if panel.allianceRosterSubtitle then
+    panel.allianceRosterSubtitle:SetText("|cFF777777Select a guild on the left to load its active roster.|r")
+  end
+  if panel.allianceRosterEmptyText then
+    panel.allianceRosterEmptyText:Show()
+    panel.allianceRosterEmptyText:SetText("|cFF777777Select a guild on the left to load its active roster.|r")
+  end
+  if panel.allianceRosterScrollBar then
+    SyncWorkOrderSlider(panel.allianceRosterScrollBar, 0, 0)
+  end
+end
+
+function LeafVE.UI:RefreshAllianceWelcomeRoster()
+  if not self.panels or not self.panels.welcome then
+    return
+  end
+
+  local panel = self.panels.welcome
+  if panel.activeWelcomeSection ~= "alliance" then
+    self:UnloadAllianceWelcomeRoster(false)
+    return
+  end
+
+  local selectedGuild = Trim(panel.selectedAllianceGuild or "")
+  local loadedGuild = Trim(panel.allianceRosterLoadedGuild or "")
+  local homeGuild = LeafVE:GetPlayerGuildName("player")
+  local rosterGuild = ""
+  if selectedGuild ~= "" and loadedGuild ~= "" and Lower(selectedGuild) == Lower(loadedGuild) then
+    rosterGuild = selectedGuild
+  end
+
+  local rosterSnapshot = rosterGuild ~= "" and LeafVE:GetAllianceRosterSnapshot(rosterGuild) or nil
+  local rosterMembers = rosterSnapshot and rosterSnapshot.members or {}
+  local rosterRowHeight = panel.allianceRosterRowHeight or 24
+  local rosterVisibleRows = GetWorkOrderVisibleRowCount(panel.allianceRosterListFrame, rosterRowHeight, 10)
+  local rosterMaxOffset = math.max(0, table.getn(rosterMembers or {}) - rosterVisibleRows)
+  if (panel.allianceRosterOffset or 0) > rosterMaxOffset then
+    panel.allianceRosterOffset = rosterMaxOffset
+  end
+
+  while table.getn(panel.allianceRosterRows or {}) < rosterVisibleRows do
+    table.insert(panel.allianceRosterRows, CreateAllianceRosterRow(panel.allianceRosterListFrame))
+  end
+
+  if panel.allianceRosterTitle then
+    if rosterGuild ~= "" then
+      panel.allianceRosterTitle:SetText("|cFFFFD700" .. tostring(rosterGuild) .. "|r")
+    elseif selectedGuild ~= "" then
+      panel.allianceRosterTitle:SetText("|cFFFFD700" .. tostring(selectedGuild) .. "|r")
+    else
+      panel.allianceRosterTitle:SetText("|cFFFFD700Alliance Roster|r")
+    end
+  end
+
+  if rosterGuild ~= "" and Lower(rosterGuild) ~= Lower(homeGuild or "") then
+    local snapshotAge = rosterSnapshot and (Now() - tonumber(rosterSnapshot.updatedAt or 0)) or nil
+    if (not rosterSnapshot) or (snapshotAge and snapshotAge > 120) then
+      LeafVE:RequestAllianceRosterSnapshot(rosterGuild, false)
+    end
+  end
+
+  if panel.allianceRosterSubtitle then
+    if rosterSnapshot then
+      panel.allianceRosterSubtitle:SetText(
+        "|cFFAAAAAA" .. tostring(rosterSnapshot.onlineCount or table.getn(rosterMembers or {})) ..
+        " active members  |  Updated " .. date("%m/%d %H:%M", tonumber(rosterSnapshot.updatedAt) or Now()) .. "|r"
+      )
+    elseif rosterGuild ~= "" then
+      panel.allianceRosterSubtitle:SetText("|cFF777777Waiting for an alliance roster broadcast from this guild.|r")
+    elseif selectedGuild ~= "" then
+      panel.allianceRosterSubtitle:SetText("|cFF777777Click the selected guild again to load its active roster.|r")
+    else
+      panel.allianceRosterSubtitle:SetText("|cFF777777Select a guild on the left to load its active roster.|r")
+    end
+  end
+
+  local rosterStartIndex = (panel.allianceRosterOffset or 0) + 1
+  for row = 1, table.getn(panel.allianceRosterRows or {}) do
+    local frame = panel.allianceRosterRows[row]
+    local dataIndex = rosterStartIndex + row - 1
+    local member = rosterMembers[dataIndex]
+    if member and row <= rosterVisibleRows and rosterGuild ~= "" then
+      frame:ClearAllPoints()
+      frame:SetPoint("TOPLEFT", panel.allianceRosterListFrame, "TOPLEFT", 4, -((row - 1) * rosterRowHeight) - 2)
+      frame:SetWidth((panel.allianceRosterListFrame:GetWidth() or 150) - 8)
+      frame.nameText:SetText(LeafVE:BuildStyledPlayerName(member.name or "Unknown", member.classTag))
+      local classLabel = tostring(member.classTag or "UNKNOWN")
+      if LeafVE_RaidUIGetClassLabel then
+        local normalizedClassLabel = LeafVE_RaidUIGetClassLabel(member.classTag or "UNKNOWN")
+        if normalizedClassLabel and normalizedClassLabel ~= "" and Lower(normalizedClassLabel) ~= "unknown" then
+          classLabel = normalizedClassLabel
+        end
+      end
+      frame.metaText:SetText("|cFF888888" .. tostring(member.rank or "") .. "  |  " .. tostring(classLabel) .. "  |  Lv " .. tostring(member.level or 0) .. "|r")
+      frame:Show()
+    elseif frame then
+      frame:Hide()
+    end
+  end
+
+  SyncWorkOrderSlider(panel.allianceRosterScrollBar, panel.allianceRosterOffset or 0, rosterMaxOffset)
+  if panel.allianceRosterEmptyText then
+    if table.getn(rosterMembers or {}) > 0 and rosterGuild ~= "" then
+      panel.allianceRosterEmptyText:Hide()
+    else
+      panel.allianceRosterEmptyText:Show()
+      if rosterGuild ~= "" then
+        panel.allianceRosterEmptyText:SetText("|cFF777777Waiting for an alliance roster broadcast from this guild.|r")
+      elseif selectedGuild ~= "" then
+        panel.allianceRosterEmptyText:SetText("|cFF777777Click the selected guild again to load its active roster.|r")
+      else
+        panel.allianceRosterEmptyText:SetText("|cFF777777Select a guild on the left to load its active roster.|r")
+      end
+    end
+  end
+end
+
+function LeafVE.UI:RefreshAllianceWelcomePanel()
+  if not self.panels or not self.panels.welcome then
+    return
+  end
+
+  local panel = self.panels.welcome
+  local alliancePane = panel.alliancePane
+  if not alliancePane then
+    return
+  end
+  if panel.activeWelcomeSection ~= "alliance" then
+    self:UnloadAllianceWelcomeRoster(false)
+    return
+  end
+
+  local guilds = LeafVE:GetAllianceGuildList()
+  local selectedGuild = Trim(panel.selectedAllianceGuild or "")
+  local homeGuild = LeafVE:GetPlayerGuildName("player")
+  if selectedGuild == "" then
+    selectedGuild = homeGuild ~= "" and homeGuild or (guilds[1] and guilds[1].name or "")
+  end
+
+  local stillExists = false
+  for i = 1, table.getn(guilds) do
+    if Lower(guilds[i].name or "") == Lower(selectedGuild) then
+      stillExists = true
+      selectedGuild = guilds[i].name
+      break
+    end
+  end
+  if not stillExists then
+    selectedGuild = guilds[1] and guilds[1].name or ""
+  end
+  panel.selectedAllianceGuild = selectedGuild
+
+  local adminVisible = LeafVE:IsAdminRank()
+  local pendingRequests = LeafVE:GetPendingAllianceAccessRequests()
+  local selectedRequestGuild = Trim(panel.selectedAllianceRequestGuild or "")
+  local requestExists = false
+  for i = 1, table.getn(pendingRequests) do
+    if Lower(pendingRequests[i].guildName or "") == Lower(selectedRequestGuild) then
+      selectedRequestGuild = pendingRequests[i].guildName
+      requestExists = true
+      break
+    end
+  end
+  if not requestExists then
+    selectedRequestGuild = pendingRequests[1] and pendingRequests[1].guildName or ""
+  end
+  panel.selectedAllianceRequestGuild = selectedRequestGuild
+
+  if panel.addAllianceBtn then
+    if adminVisible then panel.addAllianceBtn:Show() else panel.addAllianceBtn:Hide() end
+  end
+  if panel.removeAllianceBtn then
+    if adminVisible then
+      panel.removeAllianceBtn:Show()
+      if selectedGuild ~= "" and (homeGuild == "" or Lower(selectedGuild) ~= Lower(homeGuild)) then
+        panel.removeAllianceBtn:Enable()
+      else
+        panel.removeAllianceBtn:Disable()
+      end
+    else
+      panel.removeAllianceBtn:Hide()
+    end
+  end
+  if panel.allianceInputBG then
+    if adminVisible then panel.allianceInputBG:Show() else panel.allianceInputBG:Hide() end
+  end
+
+  local showPendingRequests = adminVisible
+  if panel.allianceRequestTitle then
+    if showPendingRequests then panel.allianceRequestTitle:Show() else panel.allianceRequestTitle:Hide() end
+  end
+  if panel.allianceRequestListFrame then
+    if showPendingRequests then panel.allianceRequestListFrame:Show() else panel.allianceRequestListFrame:Hide() end
+  end
+  if panel.approveAllianceBtn then
+    if showPendingRequests then
+      panel.approveAllianceBtn:Show()
+      if selectedRequestGuild ~= "" then panel.approveAllianceBtn:Enable() else panel.approveAllianceBtn:Disable() end
+    else
+      panel.approveAllianceBtn:Hide()
+    end
+  end
+  if panel.denyAllianceBtn then
+    if showPendingRequests then
+      panel.denyAllianceBtn:Show()
+      if selectedRequestGuild ~= "" then panel.denyAllianceBtn:Enable() else panel.denyAllianceBtn:Disable() end
+    else
+      panel.denyAllianceBtn:Hide()
+    end
+  end
+
+  local requestVisibleRows = 3
+  local requestRowHeight = panel.allianceRequestRowHeight or 28
+  while table.getn(panel.allianceRequestButtons or {}) < requestVisibleRows do
+    local btn = CreateAllianceGuildRowButton(panel.allianceRequestListFrame)
+    btn.panel = panel
+    btn:SetScript("OnClick", function()
+      if not this.guildName then return end
+      this.panel.selectedAllianceRequestGuild = this.guildName
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    end)
+    table.insert(panel.allianceRequestButtons, btn)
+  end
+
+  for row = 1, table.getn(panel.allianceRequestButtons or {}) do
+    local btn = panel.allianceRequestButtons[row]
+    local requestInfo = pendingRequests[row]
+    if showPendingRequests and requestInfo then
+      btn.guildName = requestInfo.guildName
+      btn:ClearAllPoints()
+      btn:SetPoint("TOPLEFT", panel.allianceRequestListFrame, "TOPLEFT", 2, -((row - 1) * requestRowHeight) - 2)
+      btn:SetWidth((panel.allianceRequestListFrame:GetWidth() or 120) - 4)
+      btn.nameText:SetText("|cFFFFD700" .. tostring(requestInfo.guildName) .. "|r")
+      btn.metaText:SetText("|cFF888888" .. date("%m/%d %H:%M", tonumber(requestInfo.requestedAt) or Now()) .. " | " .. tostring(requestInfo.requestedBy ~= "" and requestInfo.requestedBy or "Unknown") .. "|r")
+      btn.isSelected = selectedRequestGuild ~= "" and Lower(selectedRequestGuild) == Lower(requestInfo.guildName)
+      if btn.isSelected then
+        btn:SetBackdropColor(0.22, 0.18, 0.06, 0.96)
+        btn:SetBackdropBorderColor(0.90, 0.72, 0.18, 0.95)
+      else
+        btn:SetBackdropColor(0.08, 0.08, 0.09, 0.92)
+        btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.75)
+      end
+      btn:Show()
+    elseif btn then
+      btn.guildName = nil
+      btn:Hide()
+    end
+  end
+
+  if panel.allianceRequestEmptyText then
+    if showPendingRequests and table.getn(pendingRequests) < 1 then
+      panel.allianceRequestEmptyText:Show()
+      panel.allianceRequestEmptyText:SetText("|cFF777777No pending alliance access requests yet.|r")
+    else
+      panel.allianceRequestEmptyText:Hide()
+    end
+  end
+
+  if panel.allianceGuildListFrame then
+    panel.allianceGuildListFrame:ClearAllPoints()
+    if adminVisible then
+      local requestAnchor = panel.allianceRequestActionRow or panel.allianceRequestListFrame or panel.allianceInputBG
+      if requestAnchor then
+        panel.allianceGuildListFrame:SetPoint("TOPLEFT", requestAnchor, "BOTTOMLEFT", 0, -10)
+      else
+        panel.allianceGuildListFrame:SetPoint("TOPLEFT", panel.allianceGuildPanel, "TOPLEFT", 8, -188)
+      end
+    else
+      panel.allianceGuildListFrame:SetPoint("TOPLEFT", panel.allianceGuildPanel, "TOPLEFT", 8, -74)
+    end
+    panel.allianceGuildListFrame:SetPoint("BOTTOMRIGHT", panel.allianceGuildPanel, "BOTTOMRIGHT", -26, 10)
+  end
+
+  if panel.allianceStatusText then
+    local channelId = LeafVE:GetAllianceChannelId()
+    if channelId > 0 then
+      panel.allianceStatusText:SetText("|cFF88CC88Connected to Leaf Alliance.|r")
+    else
+      panel.allianceStatusText:SetText("|cFFFFD700Not connected yet. Sending a message will auto-join Leaf Alliance.|r")
+    end
+  end
+
+  local guildRowHeight = panel.allianceGuildRowHeight or 30
+  local guildVisibleRows = GetWorkOrderVisibleRowCount(panel.allianceGuildListFrame, guildRowHeight, 6)
+  local guildMaxOffset = math.max(0, table.getn(guilds) - guildVisibleRows)
+  if (panel.allianceGuildOffset or 0) > guildMaxOffset then
+    panel.allianceGuildOffset = guildMaxOffset
+  end
+  while table.getn(panel.allianceGuildButtons or {}) < guildVisibleRows do
+    local btn = CreateAllianceGuildRowButton(panel.allianceGuildListFrame)
+    btn.panel = panel
+    btn:SetScript("OnClick", function()
+      if not this.guildName then return end
+      this.panel.selectedAllianceGuild = this.guildName
+      this.panel.allianceRosterLoadedGuild = this.guildName
+      this.panel.allianceRosterOffset = 0
+      if LeafVE and LeafVE.UI and LeafVE.UI.RefreshAllianceWelcomePanel then
+        LeafVE.UI:RefreshAllianceWelcomePanel()
+      end
+    end)
+    table.insert(panel.allianceGuildButtons, btn)
+  end
+
+  local guildStartIndex = (panel.allianceGuildOffset or 0) + 1
+  for row = 1, table.getn(panel.allianceGuildButtons or {}) do
+    local btn = panel.allianceGuildButtons[row]
+    local dataIndex = guildStartIndex + row - 1
+    local guildInfo = guilds[dataIndex]
+    if guildInfo and row <= guildVisibleRows then
+      local snapshot = LeafVE:GetAllianceRosterSnapshot(guildInfo.name)
+      btn.guildName = guildInfo.name
+      btn:ClearAllPoints()
+      btn:SetPoint("TOPLEFT", panel.allianceGuildListFrame, "TOPLEFT", 2, -((row - 1) * guildRowHeight) - 2)
+      btn:SetWidth((panel.allianceGuildListFrame:GetWidth() or 120) - 4)
+      btn.nameText:SetText((guildInfo.isHomeGuild and "|cFF88CCFF" or "|cFFFFD700") .. tostring(guildInfo.name) .. "|r")
+      if snapshot and tonumber(snapshot.onlineCount or 0) > 0 then
+        btn.metaText:SetText("|cFFAAAAAA" .. tostring(snapshot.onlineCount or 0) .. " active shinobi|r")
+      else
+        btn.metaText:SetText(guildInfo.isHomeGuild and "|cFF88CC88Home guild|r" or "|cFF777777Awaiting roster sync|r")
+      end
+      btn.isSelected = selectedGuild ~= "" and Lower(selectedGuild) == Lower(guildInfo.name)
+      if btn.isSelected then
+        btn:SetBackdropColor(0.08, 0.22, 0.12, 0.96)
+        btn:SetBackdropBorderColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.95)
+      else
+        btn:SetBackdropColor(0.08, 0.08, 0.09, 0.92)
+        btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 0.75)
+      end
+      btn:Show()
+    elseif btn then
+      btn.guildName = nil
+      btn:Hide()
+    end
+  end
+  SyncWorkOrderSlider(panel.allianceGuildScrollBar, panel.allianceGuildOffset or 0, guildMaxOffset)
+
+  if self.RefreshAllianceWelcomeChatHistory then
+    self:RefreshAllianceWelcomeChatHistory(false)
+  end
+  if self.RefreshAllianceWelcomeRoster then
+    self:RefreshAllianceWelcomeRoster()
+  end
+end
+
 function BuildWelcomePanel(panel)
   -- Header
   local headerBG = panel:CreateTexture(nil, "BACKGROUND")
@@ -27781,17 +33523,64 @@ function BuildWelcomePanel(panel)
   subtitle:SetPoint("TOP", h, "BOTTOM", 0, -3)
   subtitle:SetText("|cFF888888The path of a true shinobi begins here|r")
 
-  -- Scrollable content area
-  local scrollFrame = CreateFrame("ScrollFrame", nil, panel)
-  scrollFrame:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -75)
-  scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
+  local guideModeBtn = CreateWorkOrderModeButton(panel, "Village Guide")
+  guideModeBtn:SetWidth(104)
+  guideModeBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, -72)
+  guideModeBtn:SetScript("OnClick", function()
+    if LeafVE and LeafVE.UI and LeafVE.UI.SetWelcomeSection then
+      LeafVE.UI:SetWelcomeSection("guide")
+    end
+  end)
+  panel.guideModeBtn = guideModeBtn
+
+  local allianceModeBtn = CreateWorkOrderModeButton(panel, "Leaf Alliance")
+  allianceModeBtn:SetWidth(110)
+  allianceModeBtn:SetPoint("LEFT", guideModeBtn, "RIGHT", 8, 0)
+  allianceModeBtn:SetScript("OnClick", function()
+    if LeafVE and LeafVE.UI and LeafVE.UI.SetWelcomeSection then
+      LeafVE.UI:SetWelcomeSection("alliance")
+    end
+  end)
+  panel.allianceModeBtn = allianceModeBtn
+
+  panel.guidePane = CreateFrame("Frame", nil, panel)
+  panel.guidePane:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -102)
+  panel.guidePane:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
+
+  panel.alliancePane = CreateFrame("Frame", nil, panel)
+  panel.alliancePane:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -102)
+  panel.alliancePane:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
+
+  -- Scrollable guide content
+  local scrollFrame = CreateFrame("ScrollFrame", nil, panel.guidePane)
+  scrollFrame:SetPoint("TOPLEFT", panel.guidePane, "TOPLEFT", 12, 0)
+  scrollFrame:SetPoint("BOTTOMRIGHT", panel.guidePane, "BOTTOMRIGHT", -30, 12)
   scrollFrame:EnableMouse(true)
   scrollFrame:EnableMouseWheel(true)
 
+  local function ResolveGuideContentWidth()
+    local width = tonumber(scrollFrame:GetWidth() or 0)
+    if width <= 0 then
+      width = tonumber(panel.guidePane:GetWidth() or 0) - 18
+    end
+    if width <= 0 then
+      width = tonumber(panel:GetWidth() or 0) - 56
+    end
+    if width <= 0 then
+      width = 1040
+    end
+    return math.max(560, width)
+  end
+
+  local guideContentWidth = ResolveGuideContentWidth()
+
   local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-  scrollChild:SetWidth(410)
+  scrollChild:SetWidth(guideContentWidth)
   scrollChild:SetHeight(1)
   scrollFrame:SetScrollChild(scrollChild)
+  panel.guideScrollFrame = scrollFrame
+  panel.guideScrollChild = scrollChild
+  panel.guideLayoutNodes = {}
 
   scrollFrame:SetScript("OnMouseWheel", function()
     local current = scrollFrame:GetVerticalScroll()
@@ -27802,9 +33591,9 @@ function BuildWelcomePanel(panel)
     scrollFrame:SetVerticalScroll(newScroll)
   end)
 
-  local scrollBar = CreateFrame("Slider", nil, panel)
-  scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -75)
-  scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 12)
+  local scrollBar = CreateFrame("Slider", nil, panel.guidePane)
+  scrollBar:SetPoint("TOPRIGHT", panel.guidePane, "TOPRIGHT", -8, 0)
+  scrollBar:SetPoint("BOTTOMRIGHT", panel.guidePane, "BOTTOMRIGHT", -8, 12)
   scrollBar:SetWidth(16)
   scrollBar:SetOrientation("VERTICAL")
   scrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
@@ -27837,11 +33626,13 @@ function BuildWelcomePanel(panel)
       scrollBar:SetValue(0)
     end
   end)
+  panel.guideScrollBar = scrollBar
 
   -- Content helpers
   local yOffset = -10
   local lineGap = 19
   local sectionGap = 28
+  local guideLayoutNodes = panel.guideLayoutNodes
 
   local function AddSection(title, icon)
     local tex = scrollChild:CreateTexture(nil, "ARTWORK")
@@ -27853,114 +33644,565 @@ function BuildWelcomePanel(panel)
     local fs = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 30, yOffset)
     fs:SetText("|cFF2DD35C"..title.."|r")
+    table.insert(guideLayoutNodes, {
+      kind = "section",
+      icon = tex,
+      text = fs,
+    })
     yOffset = yOffset - sectionGap
   end
 
-  local function AddLine(text, indent)
+  local function AddLine(text, indent, extraSpacing)
     indent = indent or 0
     local fs = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     fs:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 14 + indent, yOffset)
-    fs:SetWidth(390 - indent)
+    fs:SetWidth(math.max(240, guideContentWidth - 20 - indent))
     fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
     fs:SetText(text)
-    yOffset = yOffset - lineGap
+    local height = fs:GetStringHeight() or lineGap
+    if height < lineGap then
+      height = lineGap
+    end
+    table.insert(guideLayoutNodes, {
+      kind = "line",
+      text = fs,
+      indent = indent,
+      extraSpacing = extraSpacing or 1,
+    })
+    yOffset = yOffset - height - (extraSpacing or 1)
     return fs
   end
 
   local function AddDivider()
     local div = scrollChild:CreateTexture(nil, "ARTWORK")
     div:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, yOffset + 6)
-    div:SetWidth(390)
+    div:SetWidth(math.max(240, guideContentWidth - 20))
     div:SetHeight(1)
     div:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
     div:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 0.35)
+    table.insert(guideLayoutNodes, {
+      kind = "divider",
+      frame = div,
+    })
     yOffset = yOffset - 14
   end
 
+  local function AddBullet(label, text, indent)
+    return AddLine("|cFFFFD700" .. tostring(label or "") .. "|r - " .. tostring(text or ""), indent or 10)
+  end
+
+  local function RefreshGuideLayout(preserveScroll)
+    guideContentWidth = ResolveGuideContentWidth()
+    scrollChild:SetWidth(guideContentWidth)
+
+    local currentScroll = preserveScroll and (scrollFrame:GetVerticalScroll() or 0) or 0
+    local y = -10
+
+    for i = 1, table.getn(guideLayoutNodes) do
+      local node = guideLayoutNodes[i]
+      if node.kind == "section" then
+        if node.icon then
+          node.icon:ClearAllPoints()
+          node.icon:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, y + 3)
+        end
+        if node.text then
+          node.text:ClearAllPoints()
+          node.text:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 30, y)
+        end
+        y = y - sectionGap
+      elseif node.kind == "line" then
+        local indent = tonumber(node.indent or 0) or 0
+        local spacing = tonumber(node.extraSpacing or 1) or 1
+        if node.text then
+          node.text:ClearAllPoints()
+          node.text:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 14 + indent, y)
+          node.text:SetWidth(math.max(240, guideContentWidth - 20 - indent))
+          local height = node.text:GetStringHeight() or lineGap
+          if height < lineGap then
+            height = lineGap
+          end
+          y = y - height - spacing
+        end
+      elseif node.kind == "divider" then
+        if node.frame then
+          node.frame:ClearAllPoints()
+          node.frame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, y + 6)
+          node.frame:SetWidth(math.max(240, guideContentWidth - 20))
+        end
+        y = y - 14
+      end
+    end
+
+    scrollChild:SetHeight(math.abs(y) + 20)
+
+    local maxScroll = scrollFrame:GetVerticalScrollRange() or 0
+    if currentScroll > maxScroll then
+      currentScroll = maxScroll
+    end
+    scrollFrame:SetVerticalScroll(currentScroll)
+    if scrollBar then
+      if maxScroll > 0 then
+        scrollBar:SetValue((currentScroll / maxScroll) * 100)
+      else
+        scrollBar:SetValue(0)
+      end
+    end
+  end
+
   -- Welcome
-  AddSection("Welcome, Shinobi!", "Interface\\Icons\\Spell_Nature_ResistNature")
-  AddLine("Believe it! You have joined Leaf Village Legends, a guild tracker")
-  AddLine("that honours every mission, every ally, and every act of recognition.")
-  AddLine("In the spirit of Konohagakure, no shinobi walks alone. Your deeds")
-  AddLine("earn |cFFFFD700Leaf Points (LP)|r, the currency of legends.")
+  AddSection("Hokage's Briefing", "Interface\\Icons\\Ability_Warrior_BattleShout")
+  AddLine("Welcome to |cFF2DD35CLeaf Village Legends|r, the village ledger that tracks your rise from academy hopeful to shinobi legend.")
+  AddLine("Think of this panel as the Hokage's mission desk: it records your Leaf Points, badges, titles, achievements, work orders, weekly duties, events, and allied intel.")
+  AddLine("If it honors the village, supports a comrade, or strengthens the Will of Fire, this addon is built to notice it.")
   yOffset = yOffset - 4
   AddDivider()
 
-  -- How to earn points
+  AddSection("Your Ninja Dashboard", "Interface\\Icons\\INV_Misc_Map_01")
+  AddBullet("Welcome", "Read this guide, check the Daily Shinobi Briefing, and open Leaf Alliance for approved allied chat and rosters.")
+  AddBullet("Character", "View your shinobi dossier, weekly and lifetime leaderboards, achievements, badges, titles, roster, and shoutout history.")
+  AddBullet("Orders", "Manage live work orders, sign up as a crafter, climb work order reputation, and complete weekly Shinobi Duties.")
+  AddBullet("Calendar", "Review guild events, RSVP to upcoming missions, and keep pace with the village schedule.")
+  AddBullet("Options", "Adjust width, height, and scale, review point history, inspect live history, and access admin tools if you are Kage or Hokage.")
+  yOffset = yOffset - 4
+  AddDivider()
+
   AddSection("How to Earn Leaf Points", "Interface\\Icons\\INV_Misc_Coin_01")
-
-  panel.welcomeWeekendLine = AddLine("|cFFFFD700Weekend Bonus|r  (All LP gains are doubled on Saturday and Sunday)", 10)
-  yOffset = yOffset - 4
-
-  panel.welcomeLoginLine = AddLine("|cFFFFD700Daily Login|r  (+20 LP)", 10)
-  AddLine("Log in each day to collect your ninja stipend. Chain logins unlock", 20)
-  AddLine("legendary badges at 7 and 30 days straight.", 20)
-  yOffset = yOffset - 4
-
-  panel.welcomeGroupHeader = AddLine("|cFFFFD700Group Time|r  (+5 LP per online guildie every 60 minutes, cap: 500/day, AFK detection active)", 10)
-  panel.welcomeGroupDetail = AddLine("Spend time in a party or raid with online guildmates. Earn 5 LP", 20)
-  AddLine("per online guildie per session. Offline and AFK members do not count.", 20)
-  yOffset = yOffset - 4
-
+  panel.welcomeWeekendLine = AddBullet("Weekend Bonus", string.format("All Leaf Point gains are multiplied by %dx on Saturday and Sunday.", WEEKEND_POINT_MULTIPLIER))
+  panel.welcomeLoginLine = AddBullet("Daily Login", "Checking in awards 20 LP and pushes your streak toward login badges like Dedicated, Truly Dedicated, and Daily Legend.")
+  panel.welcomeGroupLine = AddBullet("Group Time", string.format("Earn %d LP per online guildie every 60 minutes while grouped, up to %d LP per day. AFK and offline members do not count.", GROUP_POINTS, GROUP_POINTS_DAILY_CAP))
+  panel.welcomeQuestLine = AddBullet("Guild Quest Turn-Ins", string.format("Turning in quests while grouped with a guildmate awards %d LP each, with no daily cap.", QUEST_POINTS))
+  panel.welcomeInstanceLine = AddBullet("Dungeons and Raids", string.format("%d LP per dungeon boss, %d per raid boss, %d extra per guildie on boss kills, plus %d / %d for dungeon and raid completion.", INSTANCE_BOSS_POINTS, RAID_BOSS_POINTS, BOSS_GUILDIE_BONUS_POINTS, INSTANCE_COMPLETION_POINTS, RAID_COMPLETION_POINTS))
+  panel.welcomeHKLine = AddBullet("Shinobi Combat", "Honorable kills earned while grouped with guildies award 0.5 LP each and feed the Shinobi Combatant badge path.")
   local soPoints = (LeafVE_DB and LeafVE_DB.options and LeafVE_DB.options.shoutoutPoints) or 10
   local soMax = LeafVE:GetShoutoutDailyLimitForPlayer(UnitName("player"))
-  panel.welcomeSOHeader = AddLine(string.format("|cFFFFD700Shoutouts|r  (+%d LP each)", soPoints), 10)
-  AddLine("Recognise a fellow shinobi's greatness! Both the giver and receiver", 20)
-  panel.welcomeSODetail1 = AddLine(string.format("earn %d LP. Use |cFF00CCFF/so PlayerName [reason]|r. You have", soPoints), 20)
-  panel.welcomeSODetail2 = AddLine(string.format("%d shoutouts per day, so spend them wisely!", soMax), 20)
+  local soMaxLabel = LeafVE:GetShoutoutDailyLimitLabel(soMax)
+  panel.welcomeShoutoutLine = AddBullet("Shoutouts", string.format("Use |cFF00CCFF/so PlayerName [reason]|r to recognize a guildmate. Both the sender and receiver earn %d LP, and you currently have %s shoutouts per day.", soPoints, soMaxLabel))
+  panel.welcomeWorkOrderLine = AddBullet("Verified Work Orders", string.format("When a requester clicks Verify, the crafter earns %d LP and both shinobi gain work order reputation.", WORK_ORDER_FINAL_REWARD_POINTS))
+  AddLine("Every one of those systems feeds your badges, your standing, and the story your dossier tells about your ninja way.", 20)
+  yOffset = yOffset - 6
+  AddDivider()
+
+  AddSection("Orders, Duties, and Supply Lines", "Interface\\Icons\\INV_Hammer_09")
+  AddBullet("Work Orders", "Post exact crafting or gathering requests, browse live jobs, sign up as a crafter, and verify deliveries when the work is done.")
+  AddBullet("Reputation Ladder", "Every verified order pushes you up the supply chain from Leaf Apprentice to Trusted Hand, Village Artisan, Master Supplier, and finally Leaf Legend.")
+  panel.welcomeRepThresholdLine = AddLine(string.format("Current major reputation thresholds are |cFFFFD700%d|r, |cFFFFD700%d|r, |cFFFFD700%d|r, and |cFFFFD700%d|r rep.", WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.trustedHand, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.villageArtisan, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.masterSupplier, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.leafLegend), 20)
+  AddBullet("Shinobi Duties", "Every weekly reset rolls five mission tiers: S, A, B, C, and D. These duties are built from tracked systems like guild-group quests, honorable kills, shoutouts, and work orders.")
+  local dutyMin = LeafVE.shinobiDutyTierInfo and LeafVE.shinobiDutyTierInfo.D or { lpReward = 10, repReward = 22 }
+  local dutyMax = LeafVE.shinobiDutyTierInfo and LeafVE.shinobiDutyTierInfo.S or { lpReward = 40, repReward = 100 }
+  panel.welcomeDutyRewardLine = AddLine(string.format("Duty rewards currently range from |cFFFFD700%d LP / %d REP|r at D tier up to |cFFFFD700%d LP / %d REP|r at S tier.", dutyMin.lpReward or 10, dutyMin.repReward or 22, dutyMax.lpReward or 40, dutyMax.repReward or 100), 20)
   yOffset = yOffset - 4
+  AddDivider()
 
-  panel.welcomeInstHeader = AddLine("|cFFFFD700Instance Runs|r  (+10 dungeon boss, +25 raid boss, +5 per guildie | +10 dungeon complete, +25 raid complete)", 10)
-  AddLine("Complete dungeons or raids with a guildmate. Boss kill points now scale with guildies in your group.", 20)
-  panel.welcomeInstDetail = AddLine("plus a flat completion bonus. Boss and completion points are separate.", 20)
+  AddSection("Recognition and Legacy", "Interface\\Icons\\INV_Misc_Book_11")
+  AddBullet("Achievements", "Your own achievement history comes straight from the client, while guildmate achievement history fills in through addon sync so player cards can show recent and full progress.")
+  AddBullet("Badges", "Badges are your village honors. They unlock from streaks, grouped play, point milestones, raids, work orders, recognition, and shinobi combat.")
+  AddBullet("Titles", "Some badges unlock titles. Equip them in |cFFFFD700Character -> Titles|r to place that honor beside your name and in guild chat.")
+  AddBullet("Player Cards", "Click a shinobi from the roster or leaderboards to open a dossier with notes, spec, gear, professions, recent badges, achievements, and work-order shortcuts.")
   yOffset = yOffset - 4
-
-  panel.welcomeQuestHeader = AddLine("|cFFFFD700Quest Completions|r  (+10 LP, no daily cap)", 10)
-  panel.welcomeQuestDetail1 = AddLine("Turn in quests while grouped with a guildmate to earn 10 LP each.", 20)
-  panel.welcomeQuestDetail2 = AddLine("No daily cap — every mission matters!", 20)
-  yOffset = yOffset - 6
   AddDivider()
 
-  -- Badges
-  AddSection("Badges", "Interface\\Icons\\INV_Letter_15")
-  AddLine("Badges are titles of honour earned when you hit milestones:")
-  AddLine("login streaks, group counts, shoutouts received, point totals,")
-  AddLine("and raid attendance all unlock badges automatically.")
-  AddLine("View yours in the |cFFFFD700Badges|r tab and wear them with pride!")
-  yOffset = yOffset - 6
-  AddDivider()
-
-  -- Achievements
-  AddSection("Achievements", "Interface\\Icons\\INV_Misc_Note_01")
-  AddLine("Track your journey through Azeroth: levels, professions, dungeons,")
-  AddLine("raids, PvP rank, gold, and exploration. Complete specific feats to")
-  AddLine("unlock titles like |cFFFFD700Hokage|r or |cFF00CCFFShadow Clone|r.")
-  AddLine("Equip a title and broadcast your legend to the guild!")
-  yOffset = yOffset - 6
-  AddDivider()
-
-  -- Quick Commands
-  AddSection("Quick Commands", "Interface\\Icons\\INV_Misc_Book_09")
-  AddLine("|cFF00CCFF/lve|r  or  |cFF00CCFF/leaf|r        - Open this window")
-  AddLine("|cFF00CCFF/so PlayerName [reason]|r   - Give a shoutout")
-  AddLine("|cFF00CCFF/lboardreq|r              - Request leaderboard sync")
-  AddLine("|cFF00CCFF/badgesync|r              - Broadcast your badges")
-  AddLine("|cFF00CCFF/lvedebug points|r        - Show your current points")
-  AddLine("|cFF00CCFF/lve debug|r             - Full Leaf Points health report")
-  yOffset = yOffset - 6
-  AddDivider()
-
-  -- Closing
-  AddSection("Final Words", "Interface\\Icons\\Spell_Holy_BlessingOfStrength")
-  AddLine("\"In the ninja world, those who break the rules are scum,")
-  AddLine("but those who abandon their comrades are worse than scum.\"")
-  AddLine("|cFF2DD35C- Kakashi Hatake|r")
+  AddSection("Village Signals and Allied Intel", "Interface\\Icons\\Ability_Hunter_SniperShot")
+  AddBullet("Guild Events", "Use the Calendar tab to track village events, RSVP, and see who is marching into the next mission.")
+  AddBullet("Leaf Alliance", "Approved allied guilds can share a common alliance feed and live roster board. Once your guild is authorized, use |cFF00CCFF/la|r or |cFF00CCFF/leafalliance|r to speak there.")
+  AddBullet("Daily Shinobi Briefing", "Once every 24 hours, the login briefing recaps weekly leaders, your standing, live work orders, and active Shinobi Duties.")
   yOffset = yOffset - 4
-  AddLine("Now run dungeons, shout out your homies, and climb to the top")
-  AddLine("of the leaderboard. The Will of Fire burns in every guildmate!")
+  AddDivider()
+
+  AddSection("Field Commands", "Interface\\Icons\\INV_Misc_Book_09")
+  AddLine("|cFF00CCFF/lve|r - Open Leaf Village Legends", 10)
+  AddLine("|cFF00CCFF/so PlayerName [reason]|r - Give a shoutout", 10)
+  AddLine("|cFF00CCFF/la|r or |cFF00CCFF/leafalliance|r - Speak in Leaf Alliance once approved", 10)
+  AddLine("|cFF00CCFF/badgesync|r - Re-broadcast your badges and badge progress", 10)
+  AddLine("|cFF00CCFF/leafrecap|r - Reopen the weekly recap when one is available", 10)
+  AddLine("|cFF00CCFF/lvedebug|r - Open the debug command list and test tools", 10)
+  yOffset = yOffset - 4
+  AddDivider()
+
+  AddSection("The Will of Fire", "Interface\\Icons\\Spell_Holy_BlessingOfStrength")
+  AddLine("\"When people are protecting something truly special to them, they truly can become as strong as they can be.\"", 10)
+  AddLine("|cFF2DD35C- Naruto Uzumaki|r", 10)
+  AddLine("Support your squad, keep the village supplied, answer the weekly mission board, and let every badge, title, and Leaf Point total tell the story of your ninja way.", 10)
 
   yOffset = yOffset - 20
   scrollChild:SetHeight(math.abs(yOffset) + 20)
+  panel.RefreshGuideLayout = RefreshGuideLayout
+  RefreshGuideLayout(false)
+  panel.guidePane:SetScript("OnShow", function()
+    if panel.RefreshGuideLayout then
+      panel.RefreshGuideLayout(true)
+    end
+  end)
+  panel.guidePane:SetScript("OnSizeChanged", function()
+    if panel.RefreshGuideLayout then
+      panel.RefreshGuideLayout(true)
+    end
+  end)
+
+  -- Alliance chat layout
+  local alliancePane = panel.alliancePane
+
+  local guildPanel = CreateInset(alliancePane)
+  guildPanel:SetPoint("TOPLEFT", alliancePane, "TOPLEFT", 12, -2)
+  guildPanel:SetPoint("BOTTOMLEFT", alliancePane, "BOTTOMLEFT", 12, 12)
+  guildPanel:SetWidth(150)
+  panel.allianceGuildPanel = guildPanel
+
+  local rosterPanel = CreateInset(alliancePane)
+  rosterPanel:SetPoint("TOPRIGHT", alliancePane, "TOPRIGHT", -12, -2)
+  rosterPanel:SetPoint("BOTTOMRIGHT", alliancePane, "BOTTOMRIGHT", -12, 12)
+  rosterPanel:SetWidth(320)
+  panel.allianceRosterPanel = rosterPanel
+
+  local chatPanel = CreateInset(alliancePane)
+  chatPanel:SetPoint("TOPLEFT", guildPanel, "TOPRIGHT", 10, 0)
+  chatPanel:SetPoint("BOTTOMRIGHT", rosterPanel, "BOTTOMLEFT", -10, 0)
+  panel.allianceChatPanel = chatPanel
+
+  local guildTitle = guildPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  guildTitle:SetPoint("TOPLEFT", guildPanel, "TOPLEFT", 10, -10)
+  guildTitle:SetText("|cFFFFD700Current Alliances|r")
+
+  local statusText = chatPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  statusText:SetPoint("TOPLEFT", chatPanel, "TOPLEFT", 10, -12)
+  statusText:SetPoint("RIGHT", chatPanel, "RIGHT", -10, 0)
+  statusText:SetJustifyH("LEFT")
+  statusText:SetText("")
+  panel.allianceStatusText = statusText
+
+  local chatTitle = chatPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  chatTitle:SetPoint("TOPLEFT", statusText, "BOTTOMLEFT", 0, -8)
+  chatTitle:SetText("|cFFFFD700Leaf Alliance Feed|r")
+
+  local rosterTitle = rosterPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  rosterTitle:SetPoint("TOPLEFT", rosterPanel, "TOPLEFT", 10, -10)
+  rosterTitle:SetText("|cFFFFD700Alliance Roster|r")
+  panel.allianceRosterTitle = rosterTitle
+
+  local rosterSubtitle = rosterPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  rosterSubtitle:SetPoint("TOPLEFT", rosterTitle, "BOTTOMLEFT", 0, -4)
+  rosterSubtitle:SetPoint("RIGHT", rosterPanel, "RIGHT", -10, 0)
+  rosterSubtitle:SetJustifyH("LEFT")
+  rosterSubtitle:SetText("")
+  panel.allianceRosterSubtitle = rosterSubtitle
+
+  local allianceInputBG = CreateFrame("Frame", nil, guildPanel)
+  allianceInputBG:SetPoint("TOPLEFT", guildTitle, "BOTTOMLEFT", 0, -8)
+  allianceInputBG:SetPoint("TOPRIGHT", guildPanel, "TOPRIGHT", -10, -30)
+  allianceInputBG:SetHeight(20)
+  allianceInputBG:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = {left = 3, right = 3, top = 3, bottom = 3}
+  })
+  allianceInputBG:SetBackdropColor(0.06, 0.06, 0.08, 0.92)
+  allianceInputBG:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+  panel.allianceInputBG = allianceInputBG
+
+  local allianceInput = CreateFrame("EditBox", nil, allianceInputBG)
+  allianceInput:SetPoint("TOPLEFT", allianceInputBG, "TOPLEFT", 5, -3)
+  allianceInput:SetPoint("BOTTOMRIGHT", allianceInputBG, "BOTTOMRIGHT", -5, 3)
+  allianceInput:SetFontObject(GameFontHighlightSmall)
+  allianceInput:SetAutoFocus(false)
+  allianceInput:SetText("")
+  allianceInput:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+  panel.allianceInput = allianceInput
+
+  local addAllianceBtn = CreateFrame("Button", nil, guildPanel, "UIPanelButtonTemplate")
+  addAllianceBtn:SetWidth(56)
+  addAllianceBtn:SetHeight(20)
+  addAllianceBtn:SetPoint("TOPLEFT", allianceInputBG, "BOTTOMLEFT", 0, -6)
+  addAllianceBtn:SetText("Add")
+  SkinButtonAccent(addAllianceBtn)
+  addAllianceBtn:SetScript("OnClick", function()
+    local value = Trim((panel.allianceInput and panel.allianceInput:GetText()) or "")
+    local ok, err = LeafVE:AddAllianceGuild(value)
+    if ok then
+      if panel.allianceInput then
+        panel.allianceInput:SetText("")
+      end
+      panel.selectedAllianceGuild = value
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    elseif panel.allianceStatusText then
+      panel.allianceStatusText:SetText("|cFFFF6666" .. tostring(err or "Unable to add alliance.") .. "|r")
+    end
+  end)
+  panel.addAllianceBtn = addAllianceBtn
+
+  local removeAllianceBtn = CreateFrame("Button", nil, guildPanel, "UIPanelButtonTemplate")
+  removeAllianceBtn:SetWidth(66)
+  removeAllianceBtn:SetHeight(20)
+  removeAllianceBtn:SetPoint("LEFT", addAllianceBtn, "RIGHT", 6, 0)
+  removeAllianceBtn:SetText("Remove")
+  SkinButtonAccent(removeAllianceBtn)
+  removeAllianceBtn:SetScript("OnClick", function()
+    local ok, err = LeafVE:RemoveAllianceGuild(panel.selectedAllianceGuild)
+    if ok then
+      panel.selectedAllianceGuild = nil
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    elseif panel.allianceStatusText then
+      panel.allianceStatusText:SetText("|cFFFF6666" .. tostring(err or "Unable to remove alliance.") .. "|r")
+    end
+  end)
+  panel.removeAllianceBtn = removeAllianceBtn
+
+  local requestTitle = guildPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  requestTitle:SetPoint("TOPLEFT", addAllianceBtn, "BOTTOMLEFT", 0, -10)
+  requestTitle:SetText("|cFFFFD700Pending Requests|r")
+  panel.allianceRequestTitle = requestTitle
+
+  local requestListFrame = CreateFrame("Frame", nil, guildPanel)
+  requestListFrame:SetPoint("TOPLEFT", requestTitle, "BOTTOMLEFT", 0, -4)
+  requestListFrame:SetPoint("TOPRIGHT", guildPanel, "TOPRIGHT", -10, -92)
+  requestListFrame:SetHeight(86)
+  panel.allianceRequestListFrame = requestListFrame
+  panel.allianceRequestButtons = {}
+  panel.allianceRequestRowHeight = 28
+
+  local requestEmptyText = requestListFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  requestEmptyText:SetPoint("TOPLEFT", requestListFrame, "TOPLEFT", 6, -8)
+  requestEmptyText:SetPoint("RIGHT", requestListFrame, "RIGHT", -6, 0)
+  requestEmptyText:SetJustifyH("LEFT")
+  requestEmptyText:SetText("|cFF777777No pending alliance access requests yet.|r")
+  panel.allianceRequestEmptyText = requestEmptyText
+
+  local requestActionRow = CreateFrame("Frame", nil, guildPanel)
+  requestActionRow:SetPoint("TOPLEFT", requestListFrame, "BOTTOMLEFT", 0, -6)
+  requestActionRow:SetPoint("TOPRIGHT", requestListFrame, "BOTTOMRIGHT", 0, -6)
+  requestActionRow:SetHeight(20)
+  panel.allianceRequestActionRow = requestActionRow
+
+  local approveAllianceBtn = CreateFrame("Button", nil, requestActionRow, "UIPanelButtonTemplate")
+  approveAllianceBtn:SetWidth(64)
+  approveAllianceBtn:SetHeight(20)
+  approveAllianceBtn:SetPoint("TOPLEFT", requestActionRow, "TOPLEFT", 0, 0)
+  approveAllianceBtn:SetText("Approve")
+  SkinButtonAccent(approveAllianceBtn)
+  approveAllianceBtn:SetScript("OnClick", function()
+    local ok, err = LeafVE:ApproveAllianceAccessRequest(panel.selectedAllianceRequestGuild)
+    if ok then
+      panel.selectedAllianceRequestGuild = nil
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    elseif panel.allianceStatusText then
+      panel.allianceStatusText:SetText("|cFFFF6666" .. tostring(err or "Unable to approve request.") .. "|r")
+    end
+  end)
+  panel.approveAllianceBtn = approveAllianceBtn
+
+  local denyAllianceBtn = CreateFrame("Button", nil, requestActionRow, "UIPanelButtonTemplate")
+  denyAllianceBtn:SetWidth(52)
+  denyAllianceBtn:SetHeight(20)
+  denyAllianceBtn:SetPoint("LEFT", approveAllianceBtn, "RIGHT", 6, 0)
+  denyAllianceBtn:SetText("Deny")
+  SkinButtonAccent(denyAllianceBtn)
+  denyAllianceBtn:SetScript("OnClick", function()
+    local ok, err = LeafVE:DenyAllianceAccessRequest(panel.selectedAllianceRequestGuild)
+    if ok then
+      panel.selectedAllianceRequestGuild = nil
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    elseif panel.allianceStatusText then
+      panel.allianceStatusText:SetText("|cFFFF6666" .. tostring(err or "Unable to deny request.") .. "|r")
+    end
+  end)
+  panel.denyAllianceBtn = denyAllianceBtn
+
+  local guildListFrame = CreateFrame("Frame", nil, guildPanel)
+  guildListFrame:SetPoint("TOPLEFT", requestActionRow, "BOTTOMLEFT", 0, -10)
+  guildListFrame:SetPoint("BOTTOMRIGHT", guildPanel, "BOTTOMRIGHT", -26, 10)
+  guildListFrame:EnableMouse(true)
+  guildListFrame:EnableMouseWheel(true)
+  guildListFrame:SetScript("OnMouseWheel", function()
+    local rowHeight = panel.allianceGuildRowHeight or 30
+    local totalRows = table.getn(LeafVE:GetAllianceGuildList())
+    local visibleRows = GetWorkOrderVisibleRowCount(this, rowHeight, 6)
+    local maxOffset = math.max(0, totalRows - visibleRows)
+    local newOffset = (panel.allianceGuildOffset or 0) - (arg1 or 0)
+    if newOffset < 0 then newOffset = 0 end
+    if newOffset > maxOffset then newOffset = maxOffset end
+    if newOffset ~= (panel.allianceGuildOffset or 0) then
+      panel.allianceGuildOffset = newOffset
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    end
+  end)
+  panel.allianceGuildListFrame = guildListFrame
+  panel.allianceGuildButtons = {}
+  panel.allianceGuildRowHeight = 30
+  panel.allianceGuildOffset = 0
+
+  local guildScrollBar = CreateFrame("Slider", nil, guildPanel)
+  guildScrollBar:SetPoint("TOPRIGHT", guildListFrame, "TOPRIGHT", 18, 0)
+  guildScrollBar:SetPoint("BOTTOMRIGHT", guildPanel, "BOTTOMRIGHT", -8, 10)
+  guildScrollBar:SetWidth(16)
+  guildScrollBar:SetOrientation("VERTICAL")
+  guildScrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+  guildScrollBar:SetMinMaxValues(0, 0)
+  guildScrollBar:SetValue(0)
+  guildScrollBar:SetValueStep(1)
+  guildScrollBar:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 8, edgeSize = 8,
+    insets = {left = 2, right = 2, top = 2, bottom = 2}
+  })
+  guildScrollBar:SetBackdropColor(0, 0, 0, 0.3)
+  guildScrollBar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+  guildScrollBar:SetScript("OnValueChanged", function()
+    if this.ignoreUpdate then return end
+    local value = math.floor((this:GetValue() or 0) + 0.5)
+    if value ~= (panel.allianceGuildOffset or 0) then
+      panel.allianceGuildOffset = value
+      LeafVE.UI:RefreshAllianceWelcomePanel()
+    end
+  end)
+  panel.allianceGuildScrollBar = guildScrollBar
+
+  local chatHistory = CreateFrame("ScrollingMessageFrame", nil, chatPanel)
+  chatHistory:SetPoint("TOPLEFT", chatPanel, "TOPLEFT", 10, -54)
+  chatHistory:SetPoint("BOTTOMRIGHT", chatPanel, "BOTTOMRIGHT", -10, 44)
+  chatHistory:SetFontObject(GameFontHighlightSmall)
+  chatHistory:SetJustifyH("LEFT")
+  chatHistory:SetFading(false)
+  chatHistory:SetMaxLines(200)
+  chatHistory:EnableMouseWheel(true)
+  chatHistory:SetScript("OnMouseWheel", function()
+    if (arg1 or 0) > 0 then
+      if IsShiftKeyDown() and this.PageUp then
+        this:PageUp()
+      elseif this.ScrollUp then
+        this:ScrollUp()
+      end
+    else
+      if IsShiftKeyDown() and this.PageDown then
+        this:PageDown()
+      elseif this.ScrollDown then
+        this:ScrollDown()
+      end
+    end
+  end)
+  panel.allianceChatHistory = chatHistory
+
+  local chatEmptyText = chatPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  chatEmptyText:SetPoint("TOPLEFT", chatHistory, "TOPLEFT", 2, -2)
+  chatEmptyText:SetPoint("RIGHT", chatHistory, "RIGHT", -2, 0)
+  chatEmptyText:SetJustifyH("LEFT")
+  chatEmptyText:SetText("")
+  panel.allianceChatEmptyText = chatEmptyText
+
+  local chatInputBG = CreateFrame("Frame", nil, chatPanel)
+  chatInputBG:SetPoint("BOTTOMLEFT", chatPanel, "BOTTOMLEFT", 10, 12)
+  chatInputBG:SetPoint("BOTTOMRIGHT", chatPanel, "BOTTOMRIGHT", -82, 12)
+  chatInputBG:SetHeight(22)
+  chatInputBG:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = {left = 3, right = 3, top = 3, bottom = 3}
+  })
+  chatInputBG:SetBackdropColor(0.06, 0.06, 0.08, 0.92)
+  chatInputBG:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+
+  local chatInput = CreateFrame("EditBox", nil, chatInputBG)
+  chatInput:SetPoint("TOPLEFT", chatInputBG, "TOPLEFT", 5, -3)
+  chatInput:SetPoint("BOTTOMRIGHT", chatInputBG, "BOTTOMRIGHT", -5, 3)
+  chatInput:SetFontObject(GameFontHighlightSmall)
+  chatInput:SetAutoFocus(false)
+  chatInput:SetText("")
+  chatInput:SetScript("OnEscapePressed", function() this:ClearFocus() end)
+  chatInput:SetScript("OnEnterPressed", function()
+    local ok, err = LeafVE:SendAllianceChatMessage(this:GetText() or "")
+    if ok then
+      this:SetText("")
+    elseif panel.allianceStatusText and err and err ~= "" then
+      panel.allianceStatusText:SetText("|cFFFFD700" .. tostring(err) .. "|r")
+    end
+  end)
+  panel.allianceChatInput = chatInput
+
+  local chatSendBtn = CreateFrame("Button", nil, chatPanel, "UIPanelButtonTemplate")
+  chatSendBtn:SetWidth(64)
+  chatSendBtn:SetHeight(22)
+  chatSendBtn:SetPoint("BOTTOMRIGHT", chatPanel, "BOTTOMRIGHT", -10, 12)
+  chatSendBtn:SetText("Send")
+  SkinButtonAccent(chatSendBtn)
+  chatSendBtn:SetScript("OnClick", function()
+    local ok, err = LeafVE:SendAllianceChatMessage((panel.allianceChatInput and panel.allianceChatInput:GetText()) or "")
+    if ok and panel.allianceChatInput then
+      panel.allianceChatInput:SetText("")
+    elseif panel.allianceStatusText and err and err ~= "" then
+      panel.allianceStatusText:SetText("|cFFFFD700" .. tostring(err) .. "|r")
+    end
+  end)
+
+  local rosterListFrame = CreateFrame("Frame", nil, rosterPanel)
+  rosterListFrame:SetPoint("TOPLEFT", rosterPanel, "TOPLEFT", 8, -52)
+  rosterListFrame:SetPoint("BOTTOMRIGHT", rosterPanel, "BOTTOMRIGHT", -28, 10)
+  rosterListFrame:EnableMouse(true)
+  rosterListFrame:EnableMouseWheel(true)
+  rosterListFrame:SetScript("OnMouseWheel", function()
+    local rosterGuild = panel.allianceRosterLoadedGuild or panel.selectedAllianceGuild or ""
+    local roster = LeafVE:GetAllianceRosterSnapshot(rosterGuild)
+    local totalRows = table.getn((roster and roster.members) or {})
+    local rowHeight = panel.allianceRosterRowHeight or 24
+    local visibleRows = GetWorkOrderVisibleRowCount(this, rowHeight, 10)
+    local maxOffset = math.max(0, totalRows - visibleRows)
+    local newOffset = (panel.allianceRosterOffset or 0) - (arg1 or 0)
+    if newOffset < 0 then newOffset = 0 end
+    if newOffset > maxOffset then newOffset = maxOffset end
+    if newOffset ~= (panel.allianceRosterOffset or 0) then
+      panel.allianceRosterOffset = newOffset
+      LeafVE.UI:RefreshAllianceWelcomeRoster()
+    end
+  end)
+  panel.allianceRosterListFrame = rosterListFrame
+  panel.allianceRosterRows = {}
+  panel.allianceRosterRowHeight = 24
+  panel.allianceRosterOffset = 0
+
+  local rosterEmptyText = rosterListFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  rosterEmptyText:SetPoint("TOPLEFT", rosterListFrame, "TOPLEFT", 4, -8)
+  rosterEmptyText:SetPoint("RIGHT", rosterListFrame, "RIGHT", -4, 0)
+  rosterEmptyText:SetJustifyH("LEFT")
+  rosterEmptyText:SetText("|cFF777777No active roster received yet.|r")
+  panel.allianceRosterEmptyText = rosterEmptyText
+
+  local rosterScrollBar = CreateFrame("Slider", nil, rosterPanel)
+  rosterScrollBar:SetPoint("TOPRIGHT", rosterListFrame, "TOPRIGHT", 20, 0)
+  rosterScrollBar:SetPoint("BOTTOMRIGHT", rosterPanel, "BOTTOMRIGHT", -8, 10)
+  rosterScrollBar:SetWidth(16)
+  rosterScrollBar:SetOrientation("VERTICAL")
+  rosterScrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+  rosterScrollBar:SetMinMaxValues(0, 0)
+  rosterScrollBar:SetValue(0)
+  rosterScrollBar:SetValueStep(1)
+  rosterScrollBar:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 8, edgeSize = 8,
+    insets = {left = 2, right = 2, top = 2, bottom = 2}
+  })
+  rosterScrollBar:SetBackdropColor(0, 0, 0, 0.3)
+  rosterScrollBar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+  rosterScrollBar:SetScript("OnValueChanged", function()
+    if this.ignoreUpdate then return end
+    local value = math.floor((this:GetValue() or 0) + 0.5)
+    if value ~= (panel.allianceRosterOffset or 0) then
+      panel.allianceRosterOffset = value
+      LeafVE.UI:RefreshAllianceWelcomeRoster()
+    end
+  end)
+  panel.allianceRosterScrollBar = rosterScrollBar
+
+  panel.activeWelcomeSection = (LeafVE_DB and LeafVE_DB.ui and LeafVE_DB.ui.welcomeSection) or "guide"
+  if panel.activeWelcomeSection == "alliance" then
+    panel.guidePane:Hide()
+    panel.alliancePane:Show()
+  else
+    panel.guidePane:Show()
+    panel.alliancePane:Hide()
+  end
+  UpdateWorkOrderModeButtonVisual(panel.guideModeBtn, panel.activeWelcomeSection == "guide")
+  UpdateWorkOrderModeButtonVisual(panel.allianceModeBtn, panel.activeWelcomeSection == "alliance")
 end
 
 function LeafVE:CreateMinimapButton()
@@ -28024,6 +34266,7 @@ function LeafVE:CreateMinimapButton()
   btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   self.minimapBtn = btn
+  self:RefreshMinimapButtonAccess()
 end
 
 function LeafVE.UI:RefreshHistory()
@@ -28146,8 +34389,9 @@ function LeafVE.UI:RefreshShoutoutsPanel()
   EnsureDB()
   local me = ShortName(UnitName("player"))
   local maxDaily = LeafVE:GetShoutoutDailyLimitForPlayer(me)
+  local maxDailyLabel = LeafVE:GetShoutoutDailyLimitLabel(maxDaily)
   if panel.subtitleText then
-    panel.subtitleText:SetText("|cFF888888Give recognition to guild members! You can give " .. tostring(maxDaily) .. " shoutout" .. (maxDaily ~= 1 and "s" or "") .. " per day.|r")
+    panel.subtitleText:SetText("|cFF888888Give recognition to guild members! You can give " .. maxDailyLabel .. " shoutout" .. (maxDaily ~= 1 and "s" or "") .. " per day.|r")
   end
 
   -- Collect all shoutout history entries from all players
@@ -28316,13 +34560,43 @@ function LeafVE.UI:RefreshBadges()
     panel.badgeSummary:SetText(string.format("|cFFAAAAAACompletion: %d/%d (%d%%)|r", earnedCount, totalCount, pct))
   end
 
-  -- Sort: category name alphabetically first, then by BADGES array index within each category
-  table.sort(allBadges, function(a, b)
-    if a.category ~= b.category then
-      return a.category < b.category
+  if not panel.badgeCategoryHeaders then
+    panel.badgeCategoryHeaders = {}
+  end
+  for i = 1, table.getn(panel.badgeCategoryHeaders) do
+    panel.badgeCategoryHeaders[i]:Hide()
+  end
+
+  local groupedBadges = {}
+  for i = 1, table.getn(allBadges) do
+    local badge = allBadges[i]
+    local category = badge.category or "Other"
+    if not groupedBadges[category] then
+      groupedBadges[category] = {}
     end
-    return a.order < b.order
-  end)
+    table.insert(groupedBadges[category], badge)
+  end
+
+  local categoryList = {}
+  local categorySeen = {}
+  for i = 1, table.getn(BADGE_COLLECTION_CATEGORY_ORDER or {}) do
+    local category = BADGE_COLLECTION_CATEGORY_ORDER[i]
+    if groupedBadges[category] then
+      categorySeen[category] = true
+      table.insert(categoryList, category)
+    end
+  end
+
+  local extraCategories = {}
+  for category in pairs(groupedBadges) do
+    if not categorySeen[category] then
+      table.insert(extraCategories, category)
+    end
+  end
+  table.sort(extraCategories)
+  for i = 1, table.getn(extraCategories) do
+    table.insert(categoryList, extraCategories[i])
+  end
 
   if table.getn(allBadges) == 0 then
     if not panel.noBadgesText then
@@ -28338,134 +34612,192 @@ function LeafVE.UI:RefreshBadges()
       panel.noBadgesText:Hide()
     end
 
-    local row = 0
-    local col = 0
-    local lastYPos = yOffset  -- Track the last Y position
-
-    for i = 1, table.getn(allBadges) do
-      local badge = allBadges[i]
-      local frame = panel.badgeFrames[i]
-
-      if not frame then
-        frame = CreateFrame("Frame", nil, scrollChild)
-        frame:SetWidth(badgeSize)
-        frame:SetHeight(badgeSize)
-        frame:EnableMouse(true)
-
-        -- Quality-coloured border (drawn behind the icon)
-        local qualityBorder = frame:CreateTexture(nil, "BACKGROUND")
-        qualityBorder:SetAllPoints(frame)
-        qualityBorder:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
-        frame.qualityBorder = qualityBorder
-
-        local icon = frame:CreateTexture(nil, "ARTWORK")
-        icon:SetWidth(badgeSize - 10)
-        icon:SetHeight(badgeSize - 10)
-        icon:SetPoint("CENTER", frame, "CENTER", 0, 0)
-        frame.icon = icon
-
-        local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        nameText:SetPoint("TOP", frame, "BOTTOM", 0, -2)
-        nameText:SetWidth(badgeSize + 20)
-        nameText:SetJustifyH("CENTER")
-        frame.nameText = nameText
-
-        table.insert(panel.badgeFrames, frame)
-      end
-      
-      -- CALCULATE POSITION
-      local xPos = 10 + (col * xSpacing)
-      local yPos = yOffset - (row * ySpacing)
-      lastYPos = yPos  -- Update last Y position
-
-      frame:ClearAllPoints()
-      frame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", xPos, yPos)
-
-      -- SET ICON AND STYLE
-      frame.icon:SetTexture(badge.icon)
-      if not frame.icon:GetTexture() then
-        frame.icon:SetTexture(LEAF_FALLBACK)
-      end
-
-      local qr, qg, qb = GetBadgeQualityColor(badge.quality)
-      if badge.earned then
-        frame.icon:SetVertexColor(1, 1, 1, 1)
-        -- Quality-coloured name text
-        frame.nameText:SetText(badge.name)
-        frame.nameText:SetTextColor(qr, qg, qb)
-        -- Quality border glow
-        if frame.qualityBorder then
-          frame.qualityBorder:SetVertexColor(qr, qg, qb, 0.35)
-          frame.qualityBorder:Show()
-        end
-      else
-        frame.icon:SetVertexColor(0.3, 0.3, 0.3, 1)
-        local curProg, tgtProg = LeafVE:GetBadgeProgress(me, badge.id)
-        if curProg and tgtProg then
-          local clamped = curProg
-          if clamped > tgtProg then clamped = tgtProg end
-          frame.nameText:SetText(string.format("%s (%d/%d)", badge.name, clamped, tgtProg))
-        else
-          frame.nameText:SetText(badge.name)
-        end
-        frame.nameText:SetTextColor(0.4, 0.4, 0.4)
-        if frame.qualityBorder then
-          frame.qualityBorder:Hide()
-        end
-      end
-
-      frame.badgeName = badge.name
-      frame.badgeDesc = badge.desc
-      frame.badgeQuality = badge.quality
-      frame.earnedAt = badge.earnedAt
-      frame.badgeId = badge.id
-      frame.badgePlayerName = me
-      
-      -- TOOLTIP
-      frame:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:ClearLines()
-        local qr2, qg2, qb2 = GetBadgeQualityColor(this.badgeQuality)
-        GameTooltip:SetText(this.badgeName, qr2, qg2, qb2, 1, true)
-        GameTooltip:AddLine("|cFF888888"..GetBadgeQualityLabel(this.badgeQuality).."|r", 1, 1, 1)
-        GameTooltip:AddLine(this.badgeDesc, 1, 1, 1, true)
-        if this.earnedAt then
-          GameTooltip:AddLine(" ", 1, 1, 1)
-          GameTooltip:AddLine("Earned: "..date("%m/%d/%Y", this.earnedAt), 0.5, 0.8, 0.5)
-        else
-          GameTooltip:AddLine(" ", 1, 1, 1)
-          local cur, tgt = LeafVE:GetBadgeProgress(this.badgePlayerName, this.badgeId)
-          if cur and tgt then
-            GameTooltip:AddLine("Progress: "..cur.." / "..tgt, 1, 0.82, 0)
-          end
-          GameTooltip:AddLine("Not yet earned", 0.6, 0.6, 0.6)
-        end
-        GameTooltip:Show()
-      end)
-      
-      frame:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-      end)
-
-      frame:Show()
-
-      -- INCREMENT COLUMN/ROW
-      col = col + 1
-      if col >= perRow then
-        col = 0
-        row = row + 1
-      end
+    local function GetCategoryMeta(category)
+      return BADGE_COLLECTION_CATEGORY_META[category] or BADGE_COLLECTION_CATEGORY_META["Other"] or { title = category, subtitle = "" }
     end
 
-    -- CALCULATE TOTAL HEIGHT using actual last position
-    local calculatedHeight = math.abs(lastYPos) + badgeSize + 80
-    
-    -- FORCE the scrollChild to update (Vanilla WoW fix)
-    scrollChild:SetHeight(1)  -- Reset to 1
+    local frameIndex = 1
+    local headerIndex = 1
+    local currentY = yOffset
+
+    for categoryIdx = 1, table.getn(categoryList) do
+      local category = categoryList[categoryIdx]
+      local badges = groupedBadges[category] or {}
+      table.sort(badges, function(a, b)
+        return (a.order or 0) < (b.order or 0)
+      end)
+
+      local categoryEarned = 0
+      for i = 1, table.getn(badges) do
+        if badges[i].earned then
+          categoryEarned = categoryEarned + 1
+        end
+      end
+
+      local header = panel.badgeCategoryHeaders[headerIndex]
+      if not header then
+        header = CreateFrame("Frame", nil, scrollChild)
+        header:SetWidth(370)
+        header:SetHeight(38)
+
+        local titleText = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        titleText:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+        titleText:SetWidth(240)
+        titleText:SetJustifyH("LEFT")
+        header.titleText = titleText
+
+        local countText = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        countText:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
+        countText:SetWidth(120)
+        countText:SetJustifyH("RIGHT")
+        header.countText = countText
+
+        local subtitleText = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        subtitleText:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -3)
+        subtitleText:SetWidth(350)
+        subtitleText:SetJustifyH("LEFT")
+        header.subtitleText = subtitleText
+
+        local divider = header:CreateTexture(nil, "ARTWORK")
+        divider:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+        divider:SetWidth(370)
+        divider:SetHeight(1)
+        divider:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+        header.divider = divider
+
+        table.insert(panel.badgeCategoryHeaders, header)
+      end
+
+      local meta = GetCategoryMeta(category)
+      header:ClearAllPoints()
+      header:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 10, currentY)
+      header.titleText:SetText("|cFFFFD700" .. tostring(meta.title or category) .. "|r")
+      header.countText:SetText("|cFFAAAAAA" .. tostring(categoryEarned) .. "/" .. tostring(table.getn(badges)) .. "|r")
+      header.subtitleText:SetText("|cFF888888" .. tostring(meta.subtitle or "") .. "|r")
+      header.divider:SetVertexColor(THEME.gold[1], THEME.gold[2], THEME.gold[3], 0.25)
+      header:Show()
+      headerIndex = headerIndex + 1
+      currentY = currentY - 46
+
+      local row = 0
+      local col = 0
+      for i = 1, table.getn(badges) do
+        local badge = badges[i]
+        local frame = panel.badgeFrames[frameIndex]
+
+        if not frame then
+          frame = CreateFrame("Frame", nil, scrollChild)
+          frame:SetWidth(badgeSize)
+          frame:SetHeight(badgeSize)
+          frame:EnableMouse(true)
+
+          local qualityBorder = frame:CreateTexture(nil, "BACKGROUND")
+          qualityBorder:SetAllPoints(frame)
+          qualityBorder:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+          frame.qualityBorder = qualityBorder
+
+          local icon = frame:CreateTexture(nil, "ARTWORK")
+          icon:SetWidth(badgeSize - 10)
+          icon:SetHeight(badgeSize - 10)
+          icon:SetPoint("CENTER", frame, "CENTER", 0, 0)
+          frame.icon = icon
+
+          local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+          nameText:SetPoint("TOP", frame, "BOTTOM", 0, -2)
+          nameText:SetWidth(badgeSize + 20)
+          nameText:SetJustifyH("CENTER")
+          frame.nameText = nameText
+
+          table.insert(panel.badgeFrames, frame)
+        end
+
+        local xPos = 10 + (col * xSpacing)
+        local yPos = currentY - (row * ySpacing)
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", xPos, yPos)
+
+        frame.icon:SetTexture(badge.icon)
+        if not frame.icon:GetTexture() then
+          frame.icon:SetTexture(LEAF_FALLBACK)
+        end
+
+        local qr, qg, qb = GetBadgeQualityColor(badge.quality)
+        if badge.earned then
+          frame.icon:SetVertexColor(1, 1, 1, 1)
+          frame.nameText:SetText(badge.name)
+          frame.nameText:SetTextColor(qr, qg, qb)
+          if frame.qualityBorder then
+            frame.qualityBorder:SetVertexColor(qr, qg, qb, 0.35)
+            frame.qualityBorder:Show()
+          end
+        else
+          frame.icon:SetVertexColor(0.3, 0.3, 0.3, 1)
+          local curProg, tgtProg = LeafVE:GetBadgeProgress(me, badge.id)
+          if curProg and tgtProg then
+            local clamped = curProg
+            if clamped > tgtProg then clamped = tgtProg end
+            frame.nameText:SetText(string.format("%s (%d/%d)", badge.name, clamped, tgtProg))
+          else
+            frame.nameText:SetText(badge.name)
+          end
+          frame.nameText:SetTextColor(0.4, 0.4, 0.4)
+          if frame.qualityBorder then
+            frame.qualityBorder:Hide()
+          end
+        end
+
+        frame.badgeName = badge.name
+        frame.badgeDesc = badge.desc
+        frame.badgeQuality = badge.quality
+        frame.earnedAt = badge.earnedAt
+        frame.badgeId = badge.id
+        frame.badgePlayerName = me
+
+        frame:SetScript("OnEnter", function()
+          GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+          GameTooltip:ClearLines()
+          local qr2, qg2, qb2 = GetBadgeQualityColor(this.badgeQuality)
+          GameTooltip:SetText(this.badgeName, qr2, qg2, qb2, 1, true)
+          GameTooltip:AddLine("|cFF888888"..GetBadgeQualityLabel(this.badgeQuality).."|r", 1, 1, 1)
+          GameTooltip:AddLine(this.badgeDesc, 1, 1, 1, true)
+          if this.earnedAt then
+            GameTooltip:AddLine(" ", 1, 1, 1)
+            GameTooltip:AddLine("Earned: "..date("%m/%d/%Y", this.earnedAt), 0.5, 0.8, 0.5)
+          else
+            GameTooltip:AddLine(" ", 1, 1, 1)
+            local cur, tgt = LeafVE:GetBadgeProgress(this.badgePlayerName, this.badgeId)
+            if cur and tgt then
+              GameTooltip:AddLine("Progress: "..cur.." / "..tgt, 1, 0.82, 0)
+            end
+            GameTooltip:AddLine("Not yet earned", 0.6, 0.6, 0.6)
+          end
+          GameTooltip:Show()
+        end)
+
+        frame:SetScript("OnLeave", function()
+          GameTooltip:Hide()
+        end)
+
+        frame:Show()
+        frameIndex = frameIndex + 1
+
+        col = col + 1
+        if col >= perRow then
+          col = 0
+          row = row + 1
+        end
+      end
+
+      if col > 0 then
+        row = row + 1
+      end
+      currentY = currentY - (row * ySpacing) - 10
+    end
+
+    local calculatedHeight = math.max(math.abs(currentY) + 24, 100)
+    scrollChild:SetHeight(1)
     scrollChild:Show()
-    scrollChild:SetHeight(calculatedHeight)  -- Set actual height
-    
-    -- Force the scrollFrame to recalculate
+    scrollChild:SetHeight(calculatedHeight)
     panel.scrollFrame:SetVerticalScroll(0)
     panel.scrollFrame:Show()
   end
@@ -28489,6 +34821,205 @@ function LeafVE.UI:RefreshBadges()
     -- Remove this frame after one update
     checkFrame:SetScript("OnUpdate", nil)
   end)
+end
+
+function LeafVE.UI:RefreshTitlesPanel()
+  if not self.panels or not self.panels.titles then
+    return
+  end
+
+  local panel = self.panels.titles
+  local me = ShortName(UnitName("player"))
+  EnsureDB()
+  if not me then
+    return
+  end
+
+  local currentTitleId = LeafVE:GetEquippedTitleIdForPlayer(me)
+  local currentTitleDef = LeafVE:GetTitleDefinition(currentTitleId)
+  if currentTitleDef then
+    local sourceBadge = GetBadgeDefinition(currentTitleDef.badgeId)
+    local currentMarkup = LeafVE:BuildPlayerTitleMarkup(me) or ("[" .. tostring(currentTitleDef.title or "") .. "]")
+    panel.currentTitleText:SetText("Equipped Title: " .. currentMarkup)
+    panel.currentTitleSource:SetText("|cFFAAAAAAUnlocked from " .. tostring(sourceBadge and sourceBadge.name or currentTitleDef.badgeId or "Unknown Badge") .. "|r")
+  else
+    panel.currentTitleText:SetText("|cFFAAAAAAEquipped Title: None|r")
+    panel.currentTitleSource:SetText("|cFF777777Unlock titles by earning special badges.|r")
+  end
+
+  for i = 1, table.getn(panel.titleRows or {}) do
+    panel.titleRows[i]:Hide()
+  end
+
+  local entries = {}
+  for i = 1, table.getn(LeafVE.titleDefinitions or {}) do
+    local titleDef = LeafVE.titleDefinitions[i]
+    table.insert(entries, {
+      def = titleDef,
+      sourceBadge = GetBadgeDefinition(titleDef.badgeId),
+      unlocked = LeafVE:IsTitleUnlockedForPlayer(me, titleDef.id),
+      order = i,
+    })
+  end
+
+  table.sort(entries, function(a, b)
+    if a.unlocked ~= b.unlocked then
+      return a.unlocked
+    end
+    return a.order < b.order
+  end)
+
+  local scrollChild = panel.scrollChild
+  local yOffset = -4
+  local rowHeight = 58
+
+  if table.getn(entries) == 0 then
+    if not panel.noTitlesText then
+      local noTitlesText = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      noTitlesText:SetPoint("TOP", scrollChild, "TOP", 0, -20)
+      noTitlesText:SetText("|cFF888888No titles available yet|r")
+      panel.noTitlesText = noTitlesText
+    end
+    panel.noTitlesText:Show()
+  else
+    if panel.noTitlesText then
+      panel.noTitlesText:Hide()
+    end
+
+    for i = 1, table.getn(entries) do
+      local entry = entries[i]
+      local row = panel.titleRows[i]
+      if not row then
+        row = CreateFrame("Frame", nil, scrollChild)
+        row:SetWidth(430)
+        row:SetHeight(rowHeight)
+        row:SetBackdrop({
+          bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+          edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+          tile = true, tileSize = 16, edgeSize = 12,
+          insets = {left = 3, right = 3, top = 3, bottom = 3}
+        })
+
+        local qualityBar = row:CreateTexture(nil, "ARTWORK")
+        qualityBar:SetPoint("TOPLEFT", row, "TOPLEFT", 4, -4)
+        qualityBar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 4, 4)
+        qualityBar:SetWidth(4)
+        qualityBar:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+        row.qualityBar = qualityBar
+
+        local icon = row:CreateTexture(nil, "ARTWORK")
+        icon:SetWidth(34)
+        icon:SetHeight(34)
+        icon:SetPoint("LEFT", row, "LEFT", 14, 0)
+        row.icon = icon
+
+        local titleText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        titleText:SetPoint("TOPLEFT", row, "TOPLEFT", 58, -11)
+        titleText:SetWidth(250)
+        titleText:SetJustifyH("LEFT")
+        row.titleText = titleText
+
+        local sourceText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        sourceText:SetPoint("TOPLEFT", titleText, "BOTTOMLEFT", 0, -4)
+        sourceText:SetWidth(250)
+        sourceText:SetJustifyH("LEFT")
+        row.sourceText = sourceText
+
+        local actionBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+        actionBtn:SetWidth(78)
+        actionBtn:SetHeight(22)
+        actionBtn:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+        SkinButtonAccent(actionBtn)
+        actionBtn:SetScript("OnClick", function()
+          local ok, err = LeafVE:SetEquippedTitleForSelf(this.titleId)
+          if not ok and err then
+            Print(err)
+          end
+        end)
+        row.actionBtn = actionBtn
+
+        row:SetScript("OnEnter", function()
+          if not this.titleData then
+            return
+          end
+          local titleData = this.titleData
+          local badge = titleData.sourceBadge
+          local tr, tg, tb = GetBadgeQualityColor((badge and badge.quality) or BADGE_QUALITY.EPIC)
+          GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+          GameTooltip:ClearLines()
+          GameTooltip:SetText(titleData.def.title, tr, tg, tb, 1, true)
+          if badge then
+            GameTooltip:AddLine("Unlocked by: " .. tostring(badge.name), 1, 1, 1)
+            GameTooltip:AddLine(tostring(badge.desc or ""), 0.8, 0.8, 0.8, true)
+          end
+          GameTooltip:AddLine(" ", 1, 1, 1)
+          if titleData.unlocked then
+            GameTooltip:AddLine("Unlocked", 0.4, 1, 0.4)
+          else
+            GameTooltip:AddLine("Locked", 1, 0.4, 0.4)
+          end
+          GameTooltip:Show()
+        end)
+        row:SetScript("OnLeave", function()
+          GameTooltip:Hide()
+        end)
+
+        panel.titleRows[i] = row
+      end
+
+      local badge = entry.sourceBadge
+      local quality = (badge and badge.quality) or BADGE_QUALITY.EPIC
+      local qr, qg, qb = GetBadgeQualityColor(quality)
+      row.titleData = entry
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 4, yOffset)
+      row.qualityBar:SetVertexColor(qr, qg, qb, 1)
+      row.icon:SetTexture((badge and badge.icon) or LEAF_EMBLEM)
+      if not row.icon:GetTexture() then
+        row.icon:SetTexture(LEAF_FALLBACK)
+      end
+
+      if entry.unlocked then
+        row:SetBackdropColor(0.06, 0.08, 0.12, 0.9)
+        row:SetBackdropBorderColor(qr, qg, qb, 0.55)
+        row.icon:SetVertexColor(1, 1, 1, 1)
+        row.titleText:SetText("|cFF" .. RGBToHex(qr, qg, qb) .. tostring(entry.def.title or "") .. "|r")
+        row.sourceText:SetText("|cFFAAAAAAUnlocked by " .. tostring(badge and badge.name or entry.def.badgeId or "Unknown Badge") .. "|r")
+      else
+        row:SetBackdropColor(0.04, 0.05, 0.07, 0.82)
+        row:SetBackdropBorderColor(0.24, 0.24, 0.28, 0.5)
+        row.icon:SetVertexColor(0.35, 0.35, 0.35, 1)
+        row.titleText:SetText("|cFF6E6E6E" .. tostring(entry.def.title or "") .. "|r")
+        row.sourceText:SetText("|cFF777777Unlock via " .. tostring(badge and badge.name or entry.def.badgeId or "Unknown Badge") .. "|r")
+      end
+
+      row.actionBtn.titleId = entry.def.id
+      if entry.unlocked and currentTitleId == entry.def.id then
+        row.actionBtn:SetText("Equipped")
+        row.actionBtn:Disable()
+      elseif entry.unlocked then
+        row.actionBtn:SetText("Equip")
+        row.actionBtn:Enable()
+      else
+        row.actionBtn:SetText("Locked")
+        row.actionBtn:Disable()
+      end
+
+      row:Show()
+      yOffset = yOffset - rowHeight - 8
+    end
+  end
+
+  scrollChild:SetHeight(math.max(1, math.abs(yOffset) + 50))
+
+  local scrollRange = panel.scrollFrame:GetVerticalScrollRange()
+  if scrollRange > 0 then
+    panel.scrollBar:Show()
+  else
+    panel.scrollBar:Hide()
+  end
+  panel.scrollFrame:SetVerticalScroll(0)
+  panel.scrollBar:SetValue(0)
 end
 
 function LeafVE.UI:RefreshAchievementsLeaderboard()
@@ -28516,23 +35047,18 @@ function LeafVE.UI:RefreshAchievementsLeaderboard()
 
   for _, playerInfo in pairs(allPlayers) do
     local name = playerInfo.name
-    local achPoints = 0
-
-    -- Try live API first
-    if LeafVE_AchTest and LeafVE_AchTest.API and LeafVE_AchTest.API.GetPlayerPoints then
-      achPoints = LeafVE_AchTest.API.GetPlayerPoints(name) or 0
-    end
+    local achPoints = LeafVE:GetAchievementPointsForPlayer(name)
 
     -- Fall back to cached data if live API returned nothing
-    if achPoints == 0 and LeafVE_GlobalDB.achievementCache and LeafVE_GlobalDB.achievementCache[name] then
-      local cache = LeafVE_GlobalDB.achievementCache[name]
+    local cache = LeafVE:GetAchievementCacheForPlayer(name)
+    if achPoints == 0 and cache then
       if cache._totalPoints then
         achPoints = cache._totalPoints
       else
         -- Manually sum cached achievement points
         for achId, _ in pairs(cache) do
           if achId ~= "_totalPoints" then
-            local meta = LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta and LeafVE_AchTest.GetAchievementMeta(achId)
+            local meta = LeafVE:GetAchievementMeta(achId)
             local pts = (meta and meta.points) or DEFAULT_ACHIEVEMENT_POINTS
             achPoints = achPoints + pts
           end
@@ -28601,13 +35127,13 @@ function LeafVE.UI:RefreshAchievementsLeaderboard()
 
         local nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         nameText:SetPoint("LEFT", rank, "RIGHT", 40, 0)
-        nameText:SetWidth(200)
+        nameText:SetWidth(240)
         nameText:SetJustifyH("LEFT")
         frame.nameText = nameText
 
         local pointsText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         pointsText:SetPoint("LEFT", nameText, "RIGHT", 10, 0)
-        pointsText:SetWidth(200)
+        pointsText:SetWidth(160)
         pointsText:SetJustifyH("LEFT")
         frame.pointsText = pointsText
 
@@ -28665,9 +35191,8 @@ function LeafVE.UI:RefreshAchievementsLeaderboard()
       end
 
       local class = string.upper(leader.class or "UNKNOWN")
-      local classColor = CLASS_COLORS[class] or {1, 1, 1}
-      frame.nameText:SetText(leader.name)
-      frame.nameText:SetTextColor(classColor[1], classColor[2], classColor[3])
+      frame.nameText:SetText(LeafVE:BuildStyledPlayerName(leader.name, class))
+      frame.nameText:SetTextColor(1, 1, 1)
       frame.playerName = leader.name
 
       frame.pointsText:SetText("|cFFFFD700"..leader.points.." achievement pts|r")
@@ -28696,14 +35221,31 @@ function LeafVE.UI:Build()
   EnsureDB()
   
   local f = (LEAFVE_UI_MODERN and LEAFVE_UI_MODERN.CreateMainFrame and LEAFVE_UI_MODERN:CreateMainFrame(UIParent))
-    or CreateFrame("Frame", nil, UIParent)
+    or CreateFrame("Frame", "LeafVE_MainFrame", UIParent)
   self.frame = f
+  _G["LeafVE_MainFrame"] = f
+  if UISpecialFrames then
+    local hasMainFrameEscape = false
+    for _, frameName in ipairs(UISpecialFrames) do
+      if frameName == "LeafVE_MainFrame" then
+        hasMainFrameEscape = true
+        break
+      end
+    end
+    if not hasMainFrameEscape then
+      table.insert(UISpecialFrames, "LeafVE_MainFrame")
+    end
+  end
   f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   
   local w, h = LeafVE:ClampUISize(LeafVE_DB.ui.w, LeafVE_DB.ui.h)
+  local uiScale = LeafVE:ClampUIScale(LeafVE_DB.ui.scale)
   
   f:SetWidth(w)
   f:SetHeight(h)
+  if f.SetScale then
+    f:SetScale(uiScale)
+  end
   f:EnableMouse(false)
   f:SetMovable(true)
   if f.SetClampedToScreen then
@@ -28779,7 +35321,7 @@ function LeafVE.UI:Build()
   
   -- Title (CENTERED, GOLD)
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  title:SetPoint("TOP", f, "TOP", 0, -12)  -- ← CENTERED
+  title:SetPoint("TOP", f, "TOP", 0, -12)  -- Ã¢â€ Â CENTERED
   title:SetText("Leaf Village Legends")
   if not LeafVEApplyFont(title, "header_large", "OUTLINE") then
     title:SetTextColor(THEME.gold[1], THEME.gold[2], THEME.gold[3])
@@ -28916,7 +35458,7 @@ function LeafVE.UI:Build()
 
   self:BuildGroupedNavigation(f)
 
-  -- Show admin tab only to Anbu, Sannin, or Hokage
+-- Show admin tab only to Kage or Hokage
   if LeafVE:IsAdminRank() then
     self.tabAdmin:Show()
   else
@@ -28980,6 +35522,11 @@ function LeafVE.UI:Build()
   self.panels.badges:SetAllPoints(self.left)
   SkinPrimaryPanel(self.panels.badges)
   BuildBadgesPanel(self.panels.badges)
+
+  self.panels.titles = CreateFrame("Frame", nil, self.left)
+  self.panels.titles:SetAllPoints(self.left)
+  SkinPrimaryPanel(self.panels.titles)
+  BuildTitlesPanel(self.panels.titles)
   
   self.panels.achievements = CreateFrame("Frame", nil, self.left)
   self.panels.achievements:SetAllPoints(self.left)
@@ -29013,13 +35560,23 @@ function LeafVE.UI:Build()
     self.panels.guildEvents.loadErrorText = guildEventLoadErrorText
   end
 
+  self.panels.workOrders = CreateFrame("Frame", nil, self.inset)
+  self.panels.workOrders:SetAllPoints(self.inset)
+  SkinPrimaryPanel(self.panels.workOrders)
+  BuildWorkOrdersPanel(self.panels.workOrders)
+
+  self.panels.shinobiDuties = CreateFrame("Frame", nil, self.inset)
+  self.panels.shinobiDuties:SetAllPoints(self.inset)
+  SkinPrimaryPanel(self.panels.shinobiDuties)
+  BuildShinobiDutiesPanel(self.panels.shinobiDuties)
+
   self.panels.workOrderRep = CreateFrame("Frame", nil, self.inset)
   self.panels.workOrderRep:SetAllPoints(self.inset)
   SkinPrimaryPanel(self.panels.workOrderRep)
   BuildWorkOrderReputationPanel(self.panels.workOrderRep)
 
-  self.panels.welcome = CreateFrame("Frame", nil, self.left)
-  self.panels.welcome:SetAllPoints(self.left)
+  self.panels.welcome = CreateFrame("Frame", nil, self.inset)
+  self.panels.welcome:SetAllPoints(self.inset)
   SkinPrimaryPanel(self.panels.welcome)
   BuildWelcomePanel(self.panels.welcome)
 
@@ -29115,11 +35672,14 @@ function LeafVE.UI:Build()
   self.panels.roster:Hide()
   self.panels.history:Hide()
   self.panels.badges:Hide()
+  self.panels.titles:Hide()
   self.panels.achievements:Hide()
   self.panels.options:Hide()
   self.panels.admin:Hide()
   self.panels.liveHistory:Hide()
   self.panels.guildEvents:Hide()
+  self.panels.workOrders:Hide()
+  self.panels.shinobiDuties:Hide()
   self.panels.workOrderRep:Hide()
   self.panels.welcome:Hide()
   self.panels.join:Hide()
@@ -29149,6 +35709,10 @@ function LeafVE.UI:Refresh()
   end
   if self.frame and self.frame.IsVisible and not self.frame:IsVisible() then
     return
+  end
+
+  if self.activeTab ~= "welcome" and self.UnloadAllianceWelcomeRoster then
+    self:UnloadAllianceWelcomeRoster(false)
   end
 
   -- If in "update required" mode, only show the update panel.
@@ -29224,7 +35788,7 @@ function LeafVE.UI:Refresh()
   self:RefreshGroupedNavigation(hasAccess)
 
   if self.card then
-    if hasAccess and self.activeTab ~= "guildEvents" and self.activeTab ~= "workOrderRep" then
+    if hasAccess and self.activeTab ~= "guildEvents" and self.activeTab ~= "workOrderRep" and self.activeTab ~= "workOrders" and self.activeTab ~= "shinobiDuties" and self.activeTab ~= "welcome" then
       self.card:Show()
     else
       self.card:Hide()
@@ -29232,7 +35796,7 @@ function LeafVE.UI:Refresh()
   end
   
   -- Hide all panels safely
-  local panelNames = {"me", "shoutouts", "leaderWeek", "leaderLife", "roster", "history", "badges", "achievements", "options", "admin", "liveHistory", "guildEvents", "workOrderRep", "welcome", "join"}
+  local panelNames = {"me", "shoutouts", "leaderWeek", "leaderLife", "roster", "history", "badges", "titles", "achievements", "options", "admin", "liveHistory", "guildEvents", "workOrders", "shinobiDuties", "workOrderRep", "welcome", "join"}
   for _, name in ipairs(panelNames) do
     if self.panels[name] and self.panels[name].Hide then
       self.panels[name]:Hide()
@@ -29375,7 +35939,8 @@ function LeafVE.UI:Refresh()
         end
       end
       if leader then
-        self.panels.me.alltimeLeader:SetText(string.format("%s with |cFFFFD700%d points|r", leader, maxPoints))
+        local leaderClass = LeafVE:GetClassTagForPlayer(leader)
+        self.panels.me.alltimeLeader:SetText(string.format("%s with |cFFFFD700%s points|r", LeafVE:BuildStyledPlayerName(leader, leaderClass), LeafVE:FormatPointAmount(maxPoints)))
       else
         self.panels.me.alltimeLeader:SetText("|cFF888888No data available|r")
       end
@@ -29383,16 +35948,7 @@ function LeafVE.UI:Refresh()
 
     -- Refresh Season Rewards display
     if self.panels.me.seasonRewards then
-      local COIN = "g"
-      local r1 = LeafVE_DB.options.seasonReward1 or SEASON_REWARD_1
-      local r2 = LeafVE_DB.options.seasonReward2 or SEASON_REWARD_2
-      local r3 = LeafVE_DB.options.seasonReward3 or SEASON_REWARD_3
-      local r4 = LeafVE_DB.options.seasonReward4 or SEASON_REWARD_4
-      local r5 = LeafVE_DB.options.seasonReward5 or SEASON_REWARD_5
-      self.panels.me.seasonRewards:SetText(string.format(
-        "|cFFFFD7001st: %d%s   3rd: %d%s\n2nd: %d%s   4th: %d%s\n5th: %d%s|r",
-        r1, COIN, r3, COIN, r2, COIN, r4, COIN, r5, COIN
-      ))
+      self.panels.me.seasonRewards:SetText("|cFFFFD700Temporarily Deactivated|r")
     end
 
     -- Calculate Week Countdown
@@ -29412,32 +35968,10 @@ function LeafVE.UI:Refresh()
     end
    end
 
-    if self.panels.me.raidTimerLeftEntries or self.panels.me.raidTimerRightEntries then
-      local timerColumns = LeafVE:GetTurtleRaidTimerColumns(Now())
-      for i = 1, table.getn(self.panels.me.raidTimerLeftEntries or {}) do
-        local entry = self.panels.me.raidTimerLeftEntries[i]
-        if entry then
-          local text = timerColumns.left and timerColumns.left[i]
-          if text and text ~= "" then
-            entry:SetText(text)
-            entry:Show()
-          else
-            entry:Hide()
-          end
-        end
-      end
-      for i = 1, table.getn(self.panels.me.raidTimerRightEntries or {}) do
-        local entry = self.panels.me.raidTimerRightEntries[i]
-        if entry then
-          local text = timerColumns.right and timerColumns.right[i]
-          if text and text ~= "" then
-            entry:SetText(text)
-            entry:Show()
-          else
-            entry:Hide()
-          end
-        end
-      end
+    if self.panels.me.messageOfDayText then
+      self.panels.me.messageOfDayText:SetText(
+        "|cFFBFE9C8\"" .. tostring(LeafVE:GetNarutoMessageOfTheDay(Now()) or "A true shinobi keeps moving for the people who believe in them.") .. "\"|r"
+      )
     end
 
     -- Populate current weekly top 5 standings
@@ -29484,7 +36018,8 @@ function LeafVE.UI:Refresh()
       for i = 1, 5 do
         if self.panels.me.weekTopEntries[i] then
           if weekLeaders[i] then
-            self.panels.me.weekTopEntries[i]:SetText(string.format("%s %s - |cFFFFD700%d pts|r", rankLabels[i], weekLeaders[i].name, weekLeaders[i].total))
+            local leaderClass = LeafVE:GetClassTagForPlayer(weekLeaders[i].name)
+            self.panels.me.weekTopEntries[i]:SetText(string.format("%s %s - |cFFFFD700%s pts|r", rankLabels[i], LeafVE:BuildStyledPlayerName(weekLeaders[i].name, leaderClass), LeafVE:FormatPointAmount(weekLeaders[i].total)))
           else
             self.panels.me.weekTopEntries[i]:SetText(string.format("%s |cFF888888------|r", rankLabels[i]))
           end
@@ -29507,13 +36042,12 @@ function LeafVE.UI:Refresh()
         end
       end
       local maxDaily = LeafVE:GetShoutoutDailyLimitForPlayer(me)
-      local remaining = maxDaily - count
-      if remaining < 0 then remaining = 0 end
+      local maxDailyLabel = LeafVE:GetShoutoutDailyLimitLabel(maxDaily)
       if self.panels.shoutouts.subtitleText then
-        self.panels.shoutouts.subtitleText:SetText("|cFF888888Give recognition to guild members! You can give " .. tostring(maxDaily) .. " shoutout" .. (maxDaily ~= 1 and "s" or "") .. " per day.|r")
+        self.panels.shoutouts.subtitleText:SetText("|cFF888888Give recognition to guild members! You can give " .. maxDailyLabel .. " shoutout" .. (maxDaily ~= 1 and "s" or "") .. " per day.|r")
       end
       if self.panels.shoutouts.usageText then
-        self.panels.shoutouts.usageText:SetText(string.format("Shoutouts remaining today: %d / %d", remaining, maxDaily))
+        self.panels.shoutouts.usageText:SetText(LeafVE:GetShoutoutUsageStatusText(count, maxDaily))
       end
     end
     self:RefreshShoutoutsPanel()
@@ -29544,6 +36078,10 @@ function LeafVE.UI:Refresh()
         LeafVE.UI:RefreshBadges()
       end
     end)
+
+  elseif self.activeTab == "titles" and self.panels.titles then
+    ShowPanelWithTransition(self.panels.titles)
+    self:RefreshTitlesPanel()
     
   elseif self.activeTab == "achievements" and self.panels.achievements then
     ShowPanelWithTransition(self.panels.achievements)
@@ -29570,6 +36108,18 @@ function LeafVE.UI:Refresh()
     ShowPanelWithTransition(self.panels.guildEvents)
     if self.RefreshGuildEventsPanel then
       self:RefreshGuildEventsPanel()
+    end
+
+  elseif self.activeTab == "workOrders" and self.panels.workOrders then
+    ShowPanelWithTransition(self.panels.workOrders)
+    if self.RefreshWorkOrdersPanel then
+      self:RefreshWorkOrdersPanel()
+    end
+
+  elseif self.activeTab == "shinobiDuties" and self.panels.shinobiDuties then
+    ShowPanelWithTransition(self.panels.shinobiDuties)
+    if self.RefreshShinobiDutiesPanel then
+      self:RefreshShinobiDutiesPanel()
     end
 
   elseif self.activeTab == "workOrderRep" and self.panels.workOrderRep then
@@ -29687,45 +36237,729 @@ function LeafVE.UI:RefreshWelcome()
   EnsureDB()
   local p = self.panels.welcome
   if not p then return end
+  if self.SetWelcomeSection then
+    self:SetWelcomeSection((LeafVE_DB.ui and LeafVE_DB.ui.welcomeSection) or p.activeWelcomeSection or "guide")
+  end
   local opts = LeafVE_DB.options
-  local soPts  = (opts and opts.shoutoutPoints) or 10
-  local soMax  = LeafVE:GetShoutoutDailyLimitForPlayer(UnitName("player"))
+  local soPts = (opts and opts.shoutoutPoints) or 10
+  local soMax = LeafVE:GetShoutoutDailyLimitForPlayer(UnitName("player"))
+  local soMaxLabel = LeafVE:GetShoutoutDailyLimitLabel(soMax)
+  local dutyMin = LeafVE.shinobiDutyTierInfo and LeafVE.shinobiDutyTierInfo.D or { lpReward = 10, repReward = 22 }
+  local dutyMax = LeafVE.shinobiDutyTierInfo and LeafVE.shinobiDutyTierInfo.S or { lpReward = 40, repReward = 100 }
+
   if p.welcomeWeekendLine then
-    p.welcomeWeekendLine:SetText("|cFFFFD700Weekend Bonus|r  (All LP gains are doubled on Saturday and Sunday)")
+    p.welcomeWeekendLine:SetText(string.format("|cFFFFD700Weekend Bonus|r - All Leaf Point gains are multiplied by %dx on Saturday and Sunday.", WEEKEND_POINT_MULTIPLIER))
   end
   if p.welcomeLoginLine then
-    p.welcomeLoginLine:SetText("|cFFFFD700Daily Login|r  (+20 LP)")
+    p.welcomeLoginLine:SetText("|cFFFFD700Daily Login|r - Checking in awards 20 LP and pushes your streak toward login badges like Dedicated, Truly Dedicated, and Daily Legend.")
   end
-  if p.welcomeGroupHeader then
-    p.welcomeGroupHeader:SetText("|cFFFFD700Group Time|r  (+5 LP per online guildie every 60 minutes, cap: 500/day, AFK detection active)")
+  if p.welcomeGroupLine then
+    p.welcomeGroupLine:SetText(string.format("|cFFFFD700Group Time|r - Earn %d LP per online guildie every 60 minutes while grouped, up to %d LP per day. AFK and offline members do not count.", GROUP_POINTS, GROUP_POINTS_DAILY_CAP))
   end
-  if p.welcomeGroupDetail then
-    p.welcomeGroupDetail:SetText("Spend time in a party or raid with online guildmates. Earn 5 LP")
+  if p.welcomeQuestLine then
+    p.welcomeQuestLine:SetText(string.format("|cFFFFD700Guild Quest Turn-Ins|r - Turning in quests while grouped with a guildmate awards %d LP each, with no daily cap.", QUEST_POINTS))
   end
-  if p.welcomeSOHeader then
-    p.welcomeSOHeader:SetText(string.format("|cFFFFD700Shoutouts|r  (+%d LP each)", soPts))
+  if p.welcomeInstanceLine then
+    p.welcomeInstanceLine:SetText(string.format("|cFFFFD700Dungeons and Raids|r - %d LP per dungeon boss, %d per raid boss, %d extra per guildie on boss kills, plus %d / %d for dungeon and raid completion.", INSTANCE_BOSS_POINTS, RAID_BOSS_POINTS, BOSS_GUILDIE_BONUS_POINTS, INSTANCE_COMPLETION_POINTS, RAID_COMPLETION_POINTS))
   end
-  if p.welcomeSODetail1 then
-    p.welcomeSODetail1:SetText(string.format("earn %d LP. Use |cFF00CCFF/so PlayerName [reason]|r. You have", soPts))
+  if p.welcomeHKLine then
+    p.welcomeHKLine:SetText("|cFFFFD700Shinobi Combat|r - Honorable kills earned while grouped with guildies award 0.5 LP each and feed the Shinobi Combatant badge path.")
   end
-  if p.welcomeSODetail2 then
-    p.welcomeSODetail2:SetText(string.format("%d shoutouts per day, so spend them wisely!", soMax))
+  if p.welcomeShoutoutLine then
+    p.welcomeShoutoutLine:SetText(string.format("|cFFFFD700Shoutouts|r - Use |cFF00CCFF/so PlayerName [reason]|r to recognize a guildmate. Both the sender and receiver earn %d LP, and you currently have %s shoutouts per day.", soPts, soMaxLabel))
   end
-  if p.welcomeInstHeader then
-    p.welcomeInstHeader:SetText("|cFFFFD700Instance Runs|r  (+10 dungeon boss, +25 raid boss, +5 per guildie | +10 dungeon complete, +25 raid complete)")
+  if p.welcomeWorkOrderLine then
+    p.welcomeWorkOrderLine:SetText(string.format("|cFFFFD700Verified Work Orders|r - When a requester clicks Verify, the crafter earns %d LP and both shinobi gain work order reputation.", WORK_ORDER_FINAL_REWARD_POINTS))
   end
-  if p.welcomeInstDetail then
-    p.welcomeInstDetail:SetText("Boss kill points scale with guildies in your group, plus a flat completion bonus.")
+  if p.welcomeRepThresholdLine then
+    p.welcomeRepThresholdLine:SetText(string.format("Current major reputation thresholds are |cFFFFD700%d|r, |cFFFFD700%d|r, |cFFFFD700%d|r, and |cFFFFD700%d|r rep.", WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.trustedHand, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.villageArtisan, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.masterSupplier, WORK_ORDER_REPUTATION_BADGE_THRESHOLDS.leafLegend))
   end
-  if p.welcomeQuestHeader then
-    p.welcomeQuestHeader:SetText("|cFFFFD700Quest Completions|r  (+10 LP, no daily cap)")
+  if p.welcomeDutyRewardLine then
+    p.welcomeDutyRewardLine:SetText(string.format("Duty rewards currently range from |cFFFFD700%d LP / %d REP|r at D tier up to |cFFFFD700%d LP / %d REP|r at S tier.", dutyMin.lpReward or 10, dutyMin.repReward or 22, dutyMax.lpReward or 40, dutyMax.repReward or 100))
   end
-  if p.welcomeQuestDetail1 then
-    p.welcomeQuestDetail1:SetText("Turn in quests while grouped with a guildmate to earn 10 LP each.")
+  if p.RefreshGuideLayout then
+    p.RefreshGuideLayout(true)
   end
-  if p.welcomeQuestDetail2 then
-    p.welcomeQuestDetail2:SetText("No daily cap — every mission matters!")
+  if self.RefreshAllianceWelcomePanel then
+    self:RefreshAllianceWelcomePanel()
   end
+end
+
+LeafVE.narutoDailyMessages = {
+  "A shinobi grows strongest when they keep moving for the people counting on them.",
+  "Even a quiet day in the village can become the step that sharpens tomorrow's legend.",
+  "Real resolve is choosing the hard path again after doubt already had its turn.",
+  "No ninja carries the whole village alone; strength multiplies when the team keeps faith.",
+  "Progress is still progress when it comes one mission, one promise, and one good deed at a time.",
+  "The will of fire burns brightest in the shinobi who lift others while chasing their own goals.",
+  "A setback is only proof that your story still has room for a stronger next chapter.",
+  "Great ninja are not remembered for comfort; they are remembered for showing up when it mattered.",
+  "Your path does not need to be easy to be worthy of becoming legendary.",
+  "Every small act of effort plants another root in the village you are helping protect.",
+  "The bravest shinobi are the ones who stay kind while carrying difficult battles.",
+  "Belief becomes power the moment you act on it instead of waiting to feel ready.",
+}
+
+function LeafVE.UI:ClearLoginBriefingWidgets(popup)
+  if type(popup) ~= "table" then
+    return
+  end
+  if type(popup.dynamicWidgets) ~= "table" then
+    popup.dynamicWidgets = {}
+    return
+  end
+
+  for i = 1, table.getn(popup.dynamicWidgets) do
+    local widget = popup.dynamicWidgets[i]
+    if widget and widget.Hide then
+      widget:Hide()
+    end
+  end
+  popup.dynamicWidgets = {}
+end
+
+function LeafVE:GetNarutoMessageOfTheDay(ts)
+  local messages = self.narutoDailyMessages or {}
+  local count = table.getn(messages)
+  if count < 1 then
+    return nil
+  end
+
+  ts = tonumber(ts) or Now()
+  local year = tonumber(date("%Y", ts)) or 0
+  local dayOfYear = tonumber(date("%j", ts)) or 1
+  local seed = (year * 37) + dayOfYear - 1
+  local index = (seed - (math.floor(seed / count) * count)) + 1
+  return messages[index]
+end
+
+function LeafVE.UI:CreateLoginBriefingPopup()
+  if self.loginBriefingPopup then return end
+
+  local popup = CreateFrame("Frame", "LeafVE_LoginBriefingPopup", UIParent)
+  popup:SetWidth(712)
+  popup:SetHeight(724)
+  popup:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
+  popup:SetFrameStrata("DIALOG")
+  popup:EnableMouse(true)
+  popup:SetMovable(true)
+  popup:RegisterForDrag("LeftButton")
+  popup:SetScript("OnDragStart", function() this:StartMoving() end)
+  popup:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+  popup:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 }
+  })
+  popup:SetBackdropColor(0, 0, 0, 0.96)
+  popup:Hide()
+
+  if UISpecialFrames then
+    table.insert(UISpecialFrames, "LeafVE_LoginBriefingPopup")
+  end
+
+  local accentTop = popup:CreateTexture(nil, "BORDER")
+  accentTop:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -18)
+  accentTop:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -18, -18)
+  accentTop:SetHeight(3)
+  accentTop:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+  accentTop:SetVertexColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
+
+  local titleText = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  titleText:SetPoint("TOP", popup, "TOP", 0, -28)
+  titleText:SetTextColor(THEME.gold[1], THEME.gold[2], THEME.gold[3])
+  titleText:SetText("Daily Shinobi Briefing")
+  popup.titleText = titleText
+
+  local subtitleText = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  subtitleText:SetPoint("TOP", titleText, "BOTTOM", 0, -4)
+  subtitleText:SetText("")
+  popup.subtitleText = subtitleText
+
+  local summaryText = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  summaryText:SetPoint("TOP", subtitleText, "BOTTOM", 0, -3)
+  summaryText:SetTextColor(0.75, 0.85, 1.0)
+  summaryText:SetText("")
+  popup.summaryText = summaryText
+
+  local closeBtn = CreateFrame("Button", nil, popup, "UIPanelCloseButton")
+  closeBtn:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -5, -5)
+  closeBtn:SetScript("OnClick", function() popup:Hide() end)
+
+  local scrollFrame = CreateFrame("ScrollFrame", nil, popup)
+  scrollFrame:SetPoint("TOPLEFT", popup, "TOPLEFT", 18, -88)
+  scrollFrame:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -34, 58)
+  scrollFrame:EnableMouse(true)
+  scrollFrame:EnableMouseWheel(true)
+  popup.scrollFrame = scrollFrame
+
+  local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+  scrollChild:SetWidth(620)
+  scrollChild:SetHeight(1)
+  scrollFrame:SetScrollChild(scrollChild)
+  popup.scrollChild = scrollChild
+
+  scrollFrame:SetScript("OnMouseWheel", function()
+    local current = scrollFrame:GetVerticalScroll()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    local newScroll = current - ((arg1 or 0) * 40)
+    if newScroll < 0 then newScroll = 0 end
+    if newScroll > maxScroll then newScroll = maxScroll end
+    scrollFrame:SetVerticalScroll(newScroll)
+  end)
+
+  local scrollBar = CreateFrame("Slider", nil, popup)
+  scrollBar:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -10, -88)
+  scrollBar:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -10, 58)
+  scrollBar:SetWidth(16)
+  scrollBar:SetOrientation("VERTICAL")
+  scrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+  scrollBar:SetMinMaxValues(0, 100)
+  scrollBar:SetValue(0)
+  local thumb = scrollBar:GetThumbTexture()
+  thumb:SetWidth(16)
+  thumb:SetHeight(24)
+  scrollBar:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 8, edgeSize = 8,
+    insets = {left = 2, right = 2, top = 2, bottom = 2}
+  })
+  scrollBar:SetBackdropColor(0, 0, 0, 0.3)
+  scrollBar:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+  scrollBar:SetScript("OnValueChanged", function()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    if maxScroll > 0 then
+      scrollFrame:SetVerticalScroll(((this:GetValue() or 0) / 100) * maxScroll)
+    else
+      scrollFrame:SetVerticalScroll(0)
+    end
+  end)
+  scrollFrame:SetScript("OnVerticalScroll", function()
+    local maxScroll = scrollFrame:GetVerticalScrollRange()
+    if maxScroll > 0 then
+      scrollBar:SetValue(((scrollFrame:GetVerticalScroll() or 0) / maxScroll) * 100)
+    else
+      scrollBar:SetValue(0)
+    end
+  end)
+  popup.scrollBar = scrollBar
+
+  local openOrdersBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+  openOrdersBtn:SetWidth(116)
+  openOrdersBtn:SetHeight(24)
+  openOrdersBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -218, 20)
+  openOrdersBtn:SetText("Open Orders")
+  SkinButtonAccent(openOrdersBtn)
+  openOrdersBtn:SetScript("OnClick", function()
+    popup:Hide()
+    if LeafVE and LeafVE.UI then
+      if not LeafVE.UI.frame or not LeafVE.UI.frame:IsVisible() then
+        LeafVE:ToggleUI()
+      end
+      if LeafVE.UI and LeafVE.UI.OpenWorkOrdersPanel then
+        LeafVE.UI:OpenWorkOrdersPanel("live")
+      end
+    end
+  end)
+  popup.openOrdersBtn = openOrdersBtn
+
+  local viewDutiesBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+  viewDutiesBtn:SetWidth(110)
+  viewDutiesBtn:SetHeight(24)
+  viewDutiesBtn:SetPoint("LEFT", openOrdersBtn, "RIGHT", 10, 0)
+  viewDutiesBtn:SetText("View Duties")
+  SkinButtonAccent(viewDutiesBtn)
+  viewDutiesBtn:SetScript("OnClick", function()
+    popup:Hide()
+    if LeafVE and LeafVE.UI then
+      if not LeafVE.UI.frame or not LeafVE.UI.frame:IsVisible() then
+        LeafVE:ToggleUI()
+      end
+      LeafVE.UI.activeCategory = "orders"
+      LeafVE.UI.activeNavSubTab = nil
+      LeafVE.UI.activeTab = "shinobiDuties"
+      if LeafVE.UI.navLastTabByCategory then
+        LeafVE.UI.navLastTabByCategory.orders = "shinobiDuties"
+      end
+      if LeafVE.UI.Refresh then
+        LeafVE.UI:Refresh()
+      end
+    end
+  end)
+  popup.viewDutiesBtn = viewDutiesBtn
+
+  local dismissBtn = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+  dismissBtn:SetWidth(82)
+  dismissBtn:SetHeight(24)
+  dismissBtn:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -24, 20)
+  dismissBtn:SetText("Dismiss")
+  dismissBtn:SetScript("OnClick", function() popup:Hide() end)
+  popup.dismissBtn = dismissBtn
+
+  popup.dynamicWidgets = {}
+  popup:SetScript("OnShow", function()
+    if LeafVE and LeafVE.UI and LeafVE.UI.RefreshLoginBriefingPopup then
+      LeafVE.UI:RefreshLoginBriefingPopup()
+    end
+  end)
+
+  if self.ApplyPopupScale then
+    self:ApplyPopupScale(popup)
+  end
+  self.loginBriefingPopup = popup
+end
+
+function LeafVE.UI:RefreshLoginBriefingPopup()
+  EnsureDB()
+  if not self.loginBriefingPopup then return end
+
+  local popup = self.loginBriefingPopup
+  local scrollChild = popup.scrollChild
+  if not scrollChild then return end
+
+  local now = Now()
+  local me = ShortName(UnitName("player"))
+  local leaders = LeafVE:GetWeeklyLeaderboardLeadersForWeek(WeekKey()) or {}
+  local liveOrders = LeafVE:GetLiveWorkOrders() or {}
+  local dutyState = me and LeafVE:RefreshShinobiDutyProgress(me) or nil
+  local duties = dutyState and dutyState.duties or {}
+  local myTotal = 0
+  local myRank = nil
+  local dutyCompleted = 0
+  local dutyRemainingLP = 0
+  local dutyRemainingRep = 0
+  local dutyPreview = {}
+  local nextDuty = nil
+
+  for i = 1, table.getn(leaders) do
+    local entry = leaders[i]
+    if type(entry) == "table" and me and SamePlayerName(entry.name, me) then
+      myTotal = tonumber(entry.total) or 0
+      myRank = i
+      break
+    end
+  end
+
+  for i = 1, table.getn(duties) do
+    local duty = duties[i]
+    if type(duty) == "table" then
+      table.insert(dutyPreview, duty)
+      local tierInfo = LeafVE:GetShinobiDutyTierInfo(duty.tier) or {}
+      if duty.completedAt then
+        dutyCompleted = dutyCompleted + 1
+      else
+        if not nextDuty then
+          nextDuty = duty
+        end
+        dutyRemainingLP = dutyRemainingLP + (tonumber(duty.lpReward) or tonumber(tierInfo.lpReward) or 0)
+        dutyRemainingRep = dutyRemainingRep + (tonumber(duty.repReward) or tonumber(tierInfo.repReward) or 0)
+      end
+    end
+  end
+
+  popup.subtitleText:SetText(date("%A, %B %d, %Y", now))
+  popup.summaryText:SetText("Weekly standing, leaders, live orders, and all five Shinobi Duties.")
+
+  self:ClearLoginBriefingWidgets(popup)
+  local widgets = popup.dynamicWidgets
+  local contentLeft = 10
+  local contentWidth = 600
+  local columnGap = 12
+  local halfWidth = math.floor((contentWidth - columnGap) / 2)
+  local yOffset = -4
+
+  local function Track(widget)
+    table.insert(widgets, widget)
+    return widget
+  end
+
+  local function CreateCard(x, y, width, height, useGradient)
+    local card = Track((useGradient and CreateGradientInset or CreateInset)(scrollChild))
+    card:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", x, y)
+    card:SetWidth(width)
+    card:SetHeight(height)
+    return card
+  end
+
+  local function AddText(parent, text, anchor, relativeTo, relativePoint, x, y, width, fontObject, r, g, b)
+    local fs = Track(parent:CreateFontString(nil, "OVERLAY", fontObject or "GameFontHighlightSmall"))
+    fs:SetPoint(anchor, relativeTo, relativePoint, x or 0, y or 0)
+    if width and width > 0 then
+      fs:SetWidth(width)
+    end
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
+    fs:SetText(text or "")
+    if r and g and b and fs.SetTextColor then
+      fs:SetTextColor(r, g, b)
+    end
+    return fs
+  end
+
+  local function AddCardHeader(card, title, subtitle, icon, accentColor)
+    local rr = accentColor and accentColor[1] or THEME.leaf[1]
+    local gg = accentColor and accentColor[2] or THEME.leaf[2]
+    local bb = accentColor and accentColor[3] or THEME.leaf[3]
+
+    local accent = Track(card:CreateTexture(nil, "ARTWORK"))
+    accent:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -12)
+    accent:SetPoint("TOPRIGHT", card, "TOPRIGHT", -12, -12)
+    accent:SetHeight(2)
+    accent:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+    accent:SetVertexColor(rr, gg, bb, 0.6)
+
+    local iconTex = nil
+    if icon then
+      iconTex = Track(card:CreateTexture(nil, "ARTWORK"))
+      iconTex:SetPoint("TOPLEFT", card, "TOPLEFT", 14, -20)
+      iconTex:SetWidth(16)
+      iconTex:SetHeight(16)
+      iconTex:SetTexture(icon)
+      iconTex:SetVertexColor(rr, gg, bb, 1)
+    end
+
+    local titleX = iconTex and 34 or 14
+    local titleText = AddText(card, "|cFF" .. RGBToHex(rr, gg, bb) .. tostring(title or "") .. "|r", "TOPLEFT", card, "TOPLEFT", titleX, -18, (card:GetWidth() or 240) - titleX - 14, "GameFontNormal")
+    local subtitleText = nil
+    if subtitle and subtitle ~= "" then
+      subtitleText = AddText(card, subtitle, "TOPLEFT", titleText, "BOTTOMLEFT", 0, -4, (card:GetWidth() or 240) - titleX - 14, "GameFontHighlightSmall", 0.58, 0.58, 0.62)
+    end
+    return titleText, subtitleText or titleText
+  end
+
+  local function FormatDutyPreviewValue(value)
+    value = tonumber(value) or 0
+    if math.abs(value - math.floor(value + 0.0001)) < 0.001 then
+      return tostring(math.floor(value + 0.0001))
+    end
+    return string.format("%.1f", value)
+  end
+
+  local orderPreviewCount = math.min(5, table.getn(liveOrders))
+  local orderCardHeight = orderPreviewCount > 0 and (102 + (orderPreviewCount * 32) + ((table.getn(liveOrders) > orderPreviewCount) and 18 or 0)) or 130
+  local dutyPreviewCount = table.getn(dutyPreview)
+  local dutyCardHeight = dutyPreviewCount > 0 and (112 + (dutyPreviewCount * 56)) or 132
+
+  local heroCard = CreateCard(contentLeft, yOffset, contentWidth, 176, true)
+  AddCardHeader(heroCard, "Village Snapshot", "Your weekly LP, rank, and duty progress at a glance.", "Interface\\Icons\\INV_Crown_01", THEME.gold)
+
+  local rankLabel = nil
+  if myRank then
+    rankLabel = GetWeeklyCharacterRankLabel(myRank)
+  end
+  local rankLine = rankLabel and ("|cFF88CC88" .. tostring(rankLabel) .. "|r") or (myTotal > 0 and "|cFFAAAAAAOn the weekly board|r" or "|cFF888888No LP earned yet this week|r")
+  local standingPane = Track(CreateInset(heroCard))
+  standingPane:SetPoint("TOPLEFT", heroCard, "TOPLEFT", 14, -48)
+  standingPane:SetWidth(266)
+  standingPane:SetHeight(92)
+
+  local focusPane = Track(CreateInset(heroCard))
+  focusPane:SetPoint("TOPRIGHT", heroCard, "TOPRIGHT", -14, -48)
+  focusPane:SetWidth(276)
+  focusPane:SetHeight(92)
+
+  AddText(standingPane, "|cFF88CC88Your Standing|r", "TOPLEFT", standingPane, "TOPLEFT", 12, -10, 140, "GameFontNormalSmall")
+  local totalValue = AddText(standingPane, "|cFFFFD700" .. LeafVE:FormatPointAmount(myTotal) .. " LP|r", "TOPRIGHT", standingPane, "TOPRIGHT", -12, -8, 132, "GameFontNormalLarge")
+  totalValue:SetJustifyH("RIGHT")
+  AddText(standingPane, rankLine, "TOPLEFT", standingPane, "TOPLEFT", 12, -32, 242, "GameFontHighlightSmall")
+  AddText(standingPane, "|cFFAAAAAAWeekly Total|r  " .. tostring(LeafVE:FormatPointAmount(myTotal)) .. " LP", "TOPLEFT", standingPane, "TOPLEFT", 12, -50, 242, "GameFontHighlightSmall")
+  AddText(standingPane, "|cFFAAAAAAReset in|r  |cFFFFD700" .. FormatCompactCountdownText((WeekStartTS(now) + (7 * SECONDS_PER_DAY)) - now) .. "|r", "BOTTOMLEFT", standingPane, "BOTTOMLEFT", 12, 12, 242, "GameFontHighlightSmall")
+
+  AddText(focusPane, "|cFFFFD700Duty Focus|r", "TOPLEFT", focusPane, "TOPLEFT", 12, -10, 120, "GameFontNormalSmall")
+  local dutyCountText = AddText(focusPane, "|cFF88CC88" .. tostring(dutyCompleted) .. "/" .. tostring(math.max(5, table.getn(duties))) .. " complete|r", "TOPRIGHT", focusPane, "TOPRIGHT", -12, -10, 118, "GameFontHighlightSmall")
+  dutyCountText:SetJustifyH("RIGHT")
+
+  if nextDuty then
+    local tierInfo = LeafVE:GetShinobiDutyTierInfo(nextDuty.tier) or {}
+    local tierColor = tierInfo.color or THEME.gold
+    local progressValue = tonumber(nextDuty.cachedProgress) or LeafVE:GetShinobiDutyMetricProgress(me, nextDuty) or 0
+    local targetValue = math.max(1, tonumber(nextDuty.target) or 1)
+    local shownProgress = math.max(0, math.min(progressValue, targetValue))
+    local focusTitle = AddText(
+      focusPane,
+      string.format("|cFF%s[%s]|r %s", RGBToHex(tierColor[1], tierColor[2], tierColor[3]), tostring(nextDuty.tier or "?"), tostring(nextDuty.title or "Duty")),
+      "TOPLEFT",
+      focusPane,
+      "TOPLEFT",
+      12,
+      -30,
+      252,
+      "GameFontNormalSmall"
+    )
+    AddText(
+      focusPane,
+      "|cFFCCCCCC" .. tostring(nextDuty.description or "Weekly duty focus") .. "|r",
+      "TOPLEFT",
+      focusTitle,
+      "BOTTOMLEFT",
+      0,
+      -4,
+      252,
+      "GameFontHighlightSmall"
+    )
+    local progressBG = Track(CreateFrame("Frame", nil, focusPane))
+    progressBG:SetPoint("BOTTOMLEFT", focusPane, "BOTTOMLEFT", 12, 12)
+    progressBG:SetPoint("BOTTOMRIGHT", focusPane, "BOTTOMRIGHT", -12, 12)
+    progressBG:SetHeight(14)
+    progressBG:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 8, edgeSize = 8,
+      insets = {left = 2, right = 2, top = 2, bottom = 2}
+    })
+    progressBG:SetBackdropColor(0.04, 0.04, 0.05, 0.9)
+    progressBG:SetBackdropBorderColor(0.24, 0.24, 0.28, 0.8)
+
+    local progressBar = Track(CreateFrame("StatusBar", nil, progressBG))
+    progressBar:SetPoint("TOPLEFT", progressBG, "TOPLEFT", 1, -1)
+    progressBar:SetPoint("BOTTOMRIGHT", progressBG, "BOTTOMRIGHT", -1, 1)
+    progressBar:SetStatusBarTexture("Interface\\TARGETINGFRAME\\UI-StatusBar")
+    progressBar:SetStatusBarColor(tierColor[1], tierColor[2], tierColor[3], 1)
+    progressBar:SetMinMaxValues(0, targetValue)
+    progressBar:SetValue(shownProgress)
+
+    AddText(
+      focusPane,
+      "|cFFAAAAAA" .. tostring(nextDuty.progressLabel or "Progress") .. "|r  " .. FormatDutyPreviewValue(progressValue) .. "/" .. FormatDutyPreviewValue(targetValue),
+      "CENTER",
+      progressBG,
+      "CENTER",
+      0,
+      0,
+      252,
+      "GameFontHighlightSmall"
+    )
+  else
+    AddText(focusPane, "|cFF88CC88All weekly duties complete. Await next week's orders.|r", "TOPLEFT", focusPane, "TOPLEFT", 12, -34, 252, "GameFontHighlightSmall")
+  end
+  AddText(heroCard, "|cFF88CC88Remaining Duty Rewards|r  |cFFFFD700+" .. LeafVE:FormatPointAmount(dutyRemainingLP) .. " LP|r  |  |cFF88CCFF+" .. tostring(dutyRemainingRep) .. " REP|r", "BOTTOMLEFT", heroCard, "BOTTOMLEFT", 18, 14, 540, "GameFontHighlightSmall")
+
+  yOffset = yOffset - 188
+
+  local messageCard = CreateCard(contentLeft, yOffset, halfWidth, 156, false)
+  AddCardHeader(messageCard, "Message of the Day", "Today's shinobi reminder.", "Interface\\Icons\\INV_Misc_Book_11", THEME.leaf)
+  local messageBody = AddText(
+    messageCard,
+    "|cFFBFE9C8" .. tostring(LeafVE:GetNarutoMessageOfTheDay(now) or "A true shinobi keeps moving for the people who believe in them.") .. "|r",
+    "TOPLEFT",
+    messageCard,
+    "TOPLEFT",
+    14,
+    -54,
+    halfWidth - 28,
+    "GameFontNormal"
+  )
+  messageBody:SetJustifyV("TOP")
+
+  local leadersCard = CreateCard(contentLeft + halfWidth + columnGap, yOffset, halfWidth, 156, false)
+  AddCardHeader(leadersCard, "Weekly Leaders", "The strongest shinobi this week.", "Interface\\Icons\\INV_Crown_01", THEME.gold)
+  if table.getn(leaders) < 1 then
+    AddText(leadersCard, "|cFF888888No weekly leaderboard data is available yet.|r", "TOPLEFT", leadersCard, "TOPLEFT", 14, -54, halfWidth - 28, "GameFontHighlightSmall")
+  else
+    local leaderY = -54
+    for i = 1, math.min(3, table.getn(leaders)) do
+      local entry = leaders[i]
+      local rr, gg, bb = GetWeeklyCharacterRankColor(i)
+      local sizeFont = i == 1 and "GameFontNormal" or "GameFontNormalSmall"
+      local leaderLine = AddText(
+        leadersCard,
+        "|cFF" .. RGBToHex(rr, gg, bb) .. "#" .. tostring(i) .. "|r " ..
+        tostring(entry.name or "Unknown") ..
+        "  |  |cFFFFD700" .. LeafVE:FormatPointAmount(tonumber(entry.total) or 0) .. " LP|r",
+        "TOPLEFT",
+        leadersCard,
+        "TOPLEFT",
+        14,
+        leaderY,
+        halfWidth - 28,
+        sizeFont
+      )
+      leaderY = leaderY - ((i == 1) and 24 or 20)
+    end
+    if myRank and myRank > 3 then
+      AddText(leadersCard, "|cFF888888You: #" .. tostring(myRank) .. "  |  " .. LeafVE:FormatPointAmount(myTotal) .. " LP|r", "BOTTOMLEFT", leadersCard, "BOTTOMLEFT", 14, 12, halfWidth - 28, "GameFontHighlightSmall")
+    end
+  end
+
+  yOffset = yOffset - 168
+
+  local ordersCard = CreateCard(contentLeft, yOffset, contentWidth, orderCardHeight, false)
+  AddCardHeader(
+    ordersCard,
+    "Live Work Orders",
+    tostring(table.getn(liveOrders)) .. " active order" .. (table.getn(liveOrders) ~= 1 and "s" or "") .. " across the village.",
+    "Interface\\Icons\\Trade_BlackSmithing",
+    THEME.leaf
+  )
+  if orderPreviewCount < 1 then
+    AddText(ordersCard, "|cFF888888No live work orders right now. The village is quiet... for now.|r", "TOPLEFT", ordersCard, "TOPLEFT", 14, -56, contentWidth - 28, "GameFontHighlightSmall")
+    AddText(ordersCard, "|cFF777777Open Orders when you want to post the next village request.|r", "TOPLEFT", ordersCard, "TOPLEFT", 14, -76, contentWidth - 28, "GameFontHighlightSmall")
+  else
+    local orderY = -56
+    for i = 1, orderPreviewCount do
+      local order = liveOrders[i]
+      local status = LeafVE:GetEffectiveWorkOrderStatus(order, now)
+      local statusMarkup = status == "pending" and "|cFFFFFF99PENDING|r" or "|cFF88FF88OPEN|r"
+      local orderLine = statusMarkup .. "  |cFFFFD700" .. tostring(order.recipeName or "Work Order") .. "|r  |  " .. tostring(GetWorkOrderQuantitySummary(order))
+      AddText(ordersCard, orderLine, "TOPLEFT", ordersCard, "TOPLEFT", 14, orderY, contentWidth - 28, "GameFontNormalSmall")
+
+      local details = {
+        tostring(order.profession or "Unknown"),
+        "Requester: " .. tostring(order.requester or "Unknown"),
+      }
+      if ClampWorkOrderTipCopper(order.tipCopper) > 0 then
+        table.insert(details, "Tip " .. tostring(FormatWorkOrderTipText(order.tipCopper)))
+      end
+      if status == "pending" then
+        local fulfiller = LeafVE:GetEffectiveWorkOrderFulfiller(order, now)
+        table.insert(details, "Claimed by " .. tostring(fulfiller or "Unknown"))
+      end
+      AddText(ordersCard, "|cFF888888" .. table.concat(details, "  |  ") .. "|r", "TOPLEFT", ordersCard, "TOPLEFT", 26, orderY - 16, contentWidth - 40, "GameFontHighlightSmall")
+      orderY = orderY - 30
+    end
+    if table.getn(liveOrders) > orderPreviewCount then
+      AddText(ordersCard, "|cFF777777+" .. tostring(table.getn(liveOrders) - orderPreviewCount) .. " more on Orders -> Work Orders.|r", "BOTTOMLEFT", ordersCard, "BOTTOMLEFT", 14, 12, contentWidth - 28, "GameFontHighlightSmall")
+    end
+  end
+
+  yOffset = yOffset - orderCardHeight - 12
+
+  local dutiesCard = CreateCard(contentLeft, yOffset, contentWidth, dutyCardHeight, false)
+  AddCardHeader(
+    dutiesCard,
+    "Shinobi Duties",
+    tostring(dutyCompleted) .. "/" .. tostring(math.max(5, table.getn(duties))) .. " complete  |  Duty Bonus +" .. tostring(LeafVE:GetShinobiDutyRepBonusAmount(me)) .. " REP",
+    "Interface\\Icons\\INV_Scroll_03",
+    THEME.gold
+  )
+  AddText(dutiesCard, "|cFF88CC88Remaining|r  |cFFFFD700+" .. LeafVE:FormatPointAmount(dutyRemainingLP) .. " LP|r  |  |cFF88CCFF+" .. tostring(dutyRemainingRep) .. " REP|r", "TOPLEFT", dutiesCard, "TOPLEFT", 14, -56, contentWidth - 28, "GameFontHighlightSmall")
+
+  if dutyPreviewCount < 1 then
+    AddText(dutiesCard, "|cFF88CC88All weekly duties complete. The next mission board arrives after reset.|r", "TOPLEFT", dutiesCard, "TOPLEFT", 14, -82, contentWidth - 28, "GameFontHighlightSmall")
+  else
+    local dutyY = -84
+    for i = 1, dutyPreviewCount do
+      local duty = dutyPreview[i]
+      local tierInfo = LeafVE:GetShinobiDutyTierInfo(duty.tier) or {}
+      local tierColor = tierInfo.color or THEME.gold
+      local progressValue = tonumber(duty.cachedProgress) or LeafVE:GetShinobiDutyMetricProgress(me, duty) or 0
+      local shownValue = math.min(progressValue, tonumber(duty.target) or 1)
+
+      local badgeText = AddText(
+        dutiesCard,
+        "|cFF" .. RGBToHex(tierColor[1], tierColor[2], tierColor[3]) .. "[" .. tostring(duty.tier or "?") .. "]|r",
+        "TOPLEFT",
+        dutiesCard,
+        "TOPLEFT",
+        14,
+        dutyY,
+        24,
+        "GameFontNormal"
+      )
+      local titleText = AddText(
+        dutiesCard,
+        "|cFF" .. RGBToHex(tierColor[1], tierColor[2], tierColor[3]) .. tostring(duty.title or "Duty") .. "|r",
+        "TOPLEFT",
+        badgeText,
+        "TOPRIGHT",
+        8,
+        0,
+        contentWidth - 230,
+        "GameFontNormalSmall"
+      )
+      local rewardText = AddText(
+        dutiesCard,
+        "|cFFFFD700+" .. tostring(tonumber(duty.lpReward) or 0) .. " LP|r  |  |cFF88CCFF+" .. tostring(tonumber(duty.repReward) or 0) .. " REP|r",
+        "TOPRIGHT",
+        dutiesCard,
+        "TOPLEFT",
+        contentWidth - 14,
+        dutyY,
+        156,
+        "GameFontHighlightSmall"
+      )
+      rewardText:SetJustifyH("RIGHT")
+      AddText(
+        dutiesCard,
+        (duty.completedAt and "|cFF88CC88Complete|r" or "|cFFAAAAAAIn Progress|r") ..
+          "  |  " .. tostring(duty.description or "Weekly duty"),
+        "TOPLEFT",
+        titleText,
+        "BOTTOMLEFT",
+        0,
+        -3,
+        contentWidth - 210,
+        "GameFontHighlightSmall"
+      )
+
+      local progressBG = Track(CreateFrame("Frame", nil, dutiesCard))
+      progressBG:SetPoint("TOPLEFT", dutiesCard, "TOPLEFT", 46, dutyY - 32)
+      progressBG:SetWidth(contentWidth - 62)
+      progressBG:SetHeight(12)
+      progressBG:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = {left = 2, right = 2, top = 2, bottom = 2}
+      })
+      progressBG:SetBackdropColor(0.04, 0.04, 0.05, 0.9)
+      progressBG:SetBackdropBorderColor(0.24, 0.24, 0.28, 0.8)
+
+      local progressBar = Track(CreateFrame("StatusBar", nil, progressBG))
+      progressBar:SetPoint("TOPLEFT", progressBG, "TOPLEFT", 1, -1)
+      progressBar:SetPoint("BOTTOMRIGHT", progressBG, "BOTTOMRIGHT", -1, 1)
+      progressBar:SetStatusBarTexture("Interface\\TARGETINGFRAME\\UI-StatusBar")
+      if duty.completedAt then
+        progressBar:SetStatusBarColor(THEME.leaf[1], THEME.leaf[2], THEME.leaf[3], 1)
+      else
+        progressBar:SetStatusBarColor(tierColor[1], tierColor[2], tierColor[3], 1)
+      end
+      progressBar:SetMinMaxValues(0, math.max(1, tonumber(duty.target) or 1))
+      progressBar:SetValue(shownValue)
+
+      local progressText = Track(progressBG:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"))
+      progressText:SetPoint("CENTER", progressBG, "CENTER", 0, 0)
+      progressText:SetText(
+        tostring(duty.progressLabel or "Progress") .. ": " .. FormatDutyPreviewValue(progressValue) .. "/" .. FormatDutyPreviewValue(tonumber(duty.target) or 0)
+      )
+
+      dutyY = dutyY - 56
+    end
+  end
+
+  scrollChild:SetHeight(math.max((-yOffset) + dutyCardHeight + 24, 1))
+  popup.scrollFrame:SetVerticalScroll(0)
+  if popup.scrollBar then
+    popup.scrollBar:SetValue(0)
+  end
+end
+
+function LeafVE.UI:ShowLoginBriefingPopup(force)
+  if not self.loginBriefingPopup then
+    self:CreateLoginBriefingPopup()
+  end
+  if not self.loginBriefingPopup then
+    return false
+  end
+
+  EnsureDB()
+  if not force then
+    if not LeafVE:HasLeafAccess() then
+      return false
+    end
+    local now = Now()
+    local lastShownAt = tonumber(LeafVE_DB and LeafVE_DB.lastLoginBriefingAt) or 0
+    if lastShownAt > 0 and (now - lastShownAt) < SECONDS_PER_DAY then
+      return false
+    end
+    LeafVE_DB.lastLoginBriefingAt = now
+  end
+
+  self:RefreshLoginBriefingPopup()
+  self.loginBriefingPopup:Show()
+  return true
 end
 
 -------------------------------------------------
@@ -29836,6 +37070,15 @@ LeafVE_eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 LeafVE_eventFrame:RegisterEvent("BAG_UPDATE")
 LeafVE_eventFrame:RegisterEvent("PLAYER_MONEY")
 LeafVE_eventFrame:RegisterEvent("CHARACTER_POINTS_CHANGED")
+pcall(function()
+  LeafVE_eventFrame:RegisterEvent("ACHIEVEMENT_EARNED")
+end)
+pcall(function()
+  LeafVE_eventFrame:RegisterEvent("PLAYER_PVP_KILLS_CHANGED")
+end)
+pcall(function()
+  LeafVE_eventFrame:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN")
+end)
 
 LeafVE_updateTimers = {
   groupCheck = 0,
@@ -29867,7 +37110,7 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     end
     
     LeafVE:CreateMinimapButton()
-    Print("Addon loaded v"..LeafVE.version.."! Use /lve or /leaf to open")
+  Print("Addon loaded v"..LeafVE.version.."! Use /lve to open")
     return
   end
   
@@ -29875,6 +37118,8 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     Print("Loaded v"..LeafVE.version)
     Print("Auto-tracking: Login & Group points enabled!")
     EnsureDB()
+    LeafVE:RefreshMinimapButtonAccess()
+    LeafVE:InvalidateClientAchievementCatalog()
     LeafVE:ApplyGuildWipeMarkerIfNeeded()
     LeafVE:RecordActivity()
     -- One-time migration: purge old "Quest area trigger" history entries
@@ -29905,6 +37150,8 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     LeafVE:CheckDailyLogin()
     LeafVE:PurgeStaleWeeklyData()
     LeafVE:PurgeInvalidWorkOrders()
+    LeafVE:PrimeHonorableKillTracker()
+    LeafVE:CacheLocalAllianceRoster()
     local me = ShortName(UnitName("player"))
     local myAlltime = me and LeafVE_DB.alltime and LeafVE_DB.alltime[me]
     if myAlltime and IsPointEntryInCurrentBucket(myAlltime) then
@@ -29917,6 +37164,7 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     LeafVE:CacheQuestLog()
     -- Register badge hyperlink handler last so it wraps any other addon's hook
     LeafVE:RegisterBadgeHyperlinkHandler()
+    LeafVE:InstallAllianceSendHook()
 
     LeafVE:ScheduleDeferred("player_login_sync_phase_1", 5, function()
       LeafVE:ApplyGuildWipeMarkerIfNeeded()
@@ -29936,13 +37184,22 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     LeafVE:ScheduleDeferred("player_login_alliance_chat_hook_2", 8, function()
       LeafVE:InstallAllianceChatSupport()
     end)
+    LeafVE:ScheduleDeferred("player_login_alliance_presence", 9, function()
+      LeafVE:BroadcastAllianceRosterPresence(true)
+    end)
+    LeafVE:ScheduleDeferred("player_login_alliance_roster_cache", 9, function()
+      LeafVE:CacheLocalAllianceRoster()
+    end)
     LeafVE:ScheduleDeferred("player_login_version_popup", 11, function()
       LeafVE:MaybeShowOutdatedVersionPopup(false)
     end)
     LeafVE:ScheduleDeferred("player_login_sync_phase_2", 7, function()
       if InGuild() then
-        LeafVE:BroadcastBadges()
-        LeafVE:BroadcastBadgeProgress()
+    LeafVE:BroadcastMyAchievements()
+    LeafVE:BroadcastBadges()
+    LeafVE:BroadcastBadgeProgress()
+    LeafVE:BroadcastMyEquippedTitle(true)
+    LeafVE:BroadcastMyShinobiDutyRepBonus(true)
         local bme = ShortName(UnitName("player"))
         if bme and LeafVE_GlobalDB.playerNotes and LeafVE_GlobalDB.playerNotes[bme] then
           LeafVE:BroadcastPlayerNote(LeafVE_GlobalDB.playerNotes[bme])
@@ -29968,11 +37225,42 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     LeafVE:ScheduleDeferred("weekly_recap_popup", 24, function()
       LeafVE:MaybeShowWeeklyRecapPopup(false)
     end)
+    LeafVE:ScheduleDeferred("login_briefing_popup", 15, function()
+      if LeafVE and LeafVE.UI and LeafVE.UI.ShowLoginBriefingPopup then
+        LeafVE.UI:ShowLoginBriefingPopup(false)
+      end
+    end)
     LeafVE:ScheduleDeferred("work_order_login_alert_1", 30, function()
       LeafVE:MaybeShowWorkOrderLoginAlert(false)
     end)
     LeafVE:ScheduleDeferred("work_order_login_alert_2", 40, function()
       LeafVE:MaybeShowWorkOrderLoginAlert(false)
+    end)
+    return
+  end
+
+  if event == "ACHIEVEMENT_EARNED" then
+    LeafVE:InvalidateClientAchievementCatalog()
+
+    LeafVE:ScheduleDeferred("achievement_earned_sync", 2, function()
+      LeafVE:InvalidateClientAchievementCatalog()
+
+      if InGuild() then
+        LeafVE:BroadcastMyAchievements()
+      end
+
+      local me = ShortName(UnitName("player"))
+      if LeafVE.UI and me and LeafVE.UI.cardCurrentPlayer and Lower(LeafVE.UI.cardCurrentPlayer) == Lower(me) then
+        LeafVE.UI:ShowPlayerCard(LeafVE.UI.cardCurrentPlayer)
+      end
+
+      if LeafVE.UI and LeafVE.UI.achPopup and LeafVE.UI.achPopup:IsShown() and LeafVE.UI.achPopup.playerName and me and Lower(LeafVE.UI.achPopup.playerName) == Lower(me) then
+        LeafVE.UI:RefreshAchievementPopup(LeafVE.UI.achPopup.playerName)
+      end
+
+      if LeafVE.UI and LeafVE.UI.panels and LeafVE.UI.panels.achievements and LeafVE.UI.panels.achievements:IsVisible() then
+        LeafVE.UI:RefreshAchievementsLeaderboard()
+      end
     end)
     return
   end
@@ -29992,6 +37280,18 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
     -- Invalidate the roster cache so the next GetGroupGuildies() call rebuilds it
     -- from the fresh server data (without triggering another GuildRoster() request).
     LeafVE.guildRosterCacheTime = 0
+    LeafVE:RefreshMinimapButtonAccess()
+    LeafVE:CacheLocalAllianceRoster()
+    LeafVE:ScheduleDeferred("alliance_roster_presence_sync", 1.5, function()
+      LeafVE:BroadcastAllianceRosterPresence(false)
+    end)
+    if LeafVE.UI and LeafVE.UI.frame and LeafVE.UI.frame:IsVisible() then
+      if LeafVE:HasLeafAccess() then
+        LeafVE.UI:Refresh()
+      else
+        LeafVE.UI.frame:Hide()
+      end
+    end
     LeafVE:ApplyGuildWipeMarkerIfNeeded()
     return
   end
@@ -30045,6 +37345,11 @@ LeafVE_eventFrame:SetScript("OnEvent", function(_, eventName, ...)
 
   if event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" then
     LeafVE:OnBossKillChat(arg1 or "")
+    return
+  end
+
+  if event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
+    LeafVE:HandleHonorableKillUpdate()
     return
   end
 
@@ -30262,8 +37567,8 @@ SlashCmdList["LEAFVE"] = function(msg)
     local dailyCap = LEAF_POINT_DAILY_CAP
     local remaining = (dailyCap == 0) and "unlimited" or tostring(math.max(0, dailyCap - totalToday))
     local capDisplay = (dailyCap == 0) and "unlimited" or tostring(dailyCap)
-    DP(string.format("Your Points: %d total (L:%d G:%d S:%d)", grandTotal, allT.L or 0, allT.G or 0, allT.S or 0))
-    DP(string.format("Daily Cap: %s | Points today: %d | Remaining: %s", capDisplay, totalToday, remaining))
+    DP(string.format("Your Points: %s total (L:%s G:%s S:%s)", LeafVE:FormatPointAmount(grandTotal), LeafVE:FormatPointAmount(allT.L or 0), LeafVE:FormatPointAmount(allT.G or 0), LeafVE:FormatPointAmount(allT.S or 0)))
+    DP(string.format("Daily Cap: %s | Points today: %s | Remaining: %s", capDisplay, LeafVE:FormatPointAmount(totalToday), remaining))
 
     -- 2. S-Point Sanity Check
     local sPoints = dayT.S or 0
@@ -30312,7 +37617,7 @@ SlashCmdList["LEAFVE"] = function(msg)
       for i = 1, table.getn(history) do
         local entry = history[i]
         local ds = entry.dateStr or date("%m/%d %H:%M", entry.timestamp)
-        DP(string.format("  [%d] +%d %s - %s (%s)", i, entry.amount, entry.type, entry.reason, ds))
+        DP(string.format("  [%d] +%s %s - %s (%s)", i, LeafVE:FormatPointAmount(entry.amount), entry.type, entry.reason, ds))
       end
     end
 
@@ -30333,6 +37638,28 @@ SlashCmdList["LEAFVE"] = function(msg)
 
   else
     LeafVE:ToggleUI()
+  end
+end
+
+SLASH_LEAFALLIANCE1 = "/la"
+SLASH_LEAFALLIANCE2 = "/leafalliance"
+SlashCmdList["LEAFALLIANCE"] = function(msg)
+  local trimmed = Trim(msg or "")
+  if trimmed ~= "" then
+    local ok, err = LeafVE:SendAllianceChatMessage(trimmed)
+    if not ok and err and err ~= "" then
+      Print(err)
+    end
+    return
+  end
+
+  if LeafVE:OpenAllianceChatInput() then
+    return
+  end
+
+  local joined = LeafVE:JoinAllianceChannel(true, true)
+  if not joined then
+    Print("Unable to open Leaf Alliance chat.")
   end
 end
 
@@ -30391,11 +37718,11 @@ SlashCmdList["LEAFDEBUG"] = function(msg)
     local day = DayKey()
     local dayEntry = (LeafVE_DB.global[day] and LeafVE_DB.global[day][me]) or nil
     local dayT = IsPointEntryInCurrentBucket(dayEntry) and dayEntry or {L = 0, G = 0, S = 0}
-    Print(string.format("Today: L:%d G:%d S:%d | Total: %d", dayT.L, dayT.G, dayT.S, (dayT.L + dayT.G + dayT.S)))
+    Print(string.format("Today: L:%s G:%s S:%s | Total: %s", LeafVE:FormatPointAmount(dayT.L), LeafVE:FormatPointAmount(dayT.G), LeafVE:FormatPointAmount(dayT.S), LeafVE:FormatPointAmount((dayT.L + dayT.G + dayT.S))))
     
     local allEntry = LeafVE_DB.alltime[me]
     local allT = IsPointEntryInCurrentBucket(allEntry) and allEntry or {L = 0, G = 0, S = 0}
-    Print(string.format("All-Time: L:%d G:%d S:%d | Total: %d", allT.L, allT.G, allT.S, (allT.L + allT.G + allT.S)))
+    Print(string.format("All-Time: L:%s G:%s S:%s | Total: %s", LeafVE:FormatPointAmount(allT.L), LeafVE:FormatPointAmount(allT.G), LeafVE:FormatPointAmount(allT.S), LeafVE:FormatPointAmount((allT.L + allT.G + allT.S))))
     
   elseif msg == "shoutouts" then
     local me = ShortName(UnitName("player"))
@@ -30408,7 +37735,7 @@ SlashCmdList["LEAFDEBUG"] = function(msg)
       if (bucket <= 0 or shoutTs >= bucket) and DayKeyFromTS(shoutTs) == today then count = count + 1 end
     end
     local maxDaily = LeafVE:GetShoutoutDailyLimitForPlayer(me)
-    Print(string.format("Shoutouts used today: %d / %d", count, maxDaily))
+    Print(string.format("Shoutouts used today: %d / %s", count, LeafVE:GetShoutoutDailyLimitLabel(maxDaily)))
     
   elseif msg == "quest" then
     local me = ShortName(UnitName("player"))
@@ -30466,6 +37793,33 @@ SlashCmdList["LEAFDEBUG"] = function(msg)
     if LeafVE.UI and LeafVE.UI.RefreshRoster then
       LeafVE.UI:RefreshRoster()
     end
+
+  elseif msg == "briefing" then
+    local leaders = LeafVE:GetWeeklyLeaderboardLeadersForWeek(WeekKey()) or {}
+    local liveOrders = LeafVE:GetLiveWorkOrders() or {}
+    Print("Login briefing data: weekly leaders=" .. tostring(table.getn(leaders)) .. ", live work orders=" .. tostring(table.getn(liveOrders)))
+    if LeafVE.UI and LeafVE.UI.ShowLoginBriefingPopup then
+      local shown = LeafVE.UI:ShowLoginBriefingPopup(true)
+      Print("Login briefing popup " .. (shown and "shown." or "failed to show."))
+    else
+      Print("Login briefing popup handler is missing.")
+    end
+
+  elseif msg == "briefstatus" then
+    local leaders = LeafVE:GetWeeklyLeaderboardLeadersForWeek(WeekKey()) or {}
+    local liveOrders = LeafVE:GetLiveWorkOrders() or {}
+    Print("=== LOGIN BRIEFING STATUS ===")
+    Print("LeafVE.UI: " .. (LeafVE.UI and "EXISTS" or "NIL"))
+    Print("CreateLoginBriefingPopup: " .. (LeafVE.UI and LeafVE.UI.CreateLoginBriefingPopup and "EXISTS" or "NIL"))
+    Print("ShowLoginBriefingPopup: " .. (LeafVE.UI and LeafVE.UI.ShowLoginBriefingPopup and "EXISTS" or "NIL"))
+    Print("RefreshLoginBriefingPopup: " .. (LeafVE.UI and LeafVE.UI.RefreshLoginBriefingPopup and "EXISTS" or "NIL"))
+    Print("Popup frame: " .. (LeafVE.UI and LeafVE.UI.loginBriefingPopup and "EXISTS" or "NIL"))
+    if LeafVE.UI and LeafVE.UI.loginBriefingPopup then
+      Print("Popup visible: " .. (LeafVE.UI.loginBriefingPopup:IsVisible() and "YES" or "NO"))
+    end
+    Print("Weekly leaders available: " .. tostring(table.getn(leaders)))
+    Print("Live work orders available: " .. tostring(table.getn(liveOrders)))
+    Print("=============================")
     
   elseif msg == "errors" then
     if table.getn(LeafVE.errorLog) == 0 then
@@ -30602,12 +37956,8 @@ SlashCmdList["LEAFDEBUG"] = function(msg)
     Print("  Guild info: "..(guildInfo and "PASS" or "FAIL"))
     
     Print("Test 5: Achievement title")
-    if LeafVE_AchTest_DB and LeafVE_AchTest_DB[me] then
-      local title = LeafVE_AchTest_DB[me].equippedTitle
-      Print("  Equipped title: "..(title or "NONE"))
-    else
-      Print("  Achievement addon: NOT LOADED")
-    end
+    local title = LeafVE:GetEquippedTitleNameForPlayer(me)
+    Print("  Equipped title: "..(title or "NONE"))
     
     Print("Test 6: Quest turn-in guild detection")
     Print("  LeafVE:GetGroupGuildies: "..(LeafVE.GetGroupGuildies and "PASS" or "FAIL"))
@@ -30639,6 +37989,8 @@ SlashCmdList["LEAFDEBUG"] = function(msg)
     Print("/lvedebug attendance - Track attendance")
     Print("/lvedebug history - Show point history")
     Print("/lvedebug populate - Populate roster from online")
+    Print("/lvedebug briefing - Force the login briefing popup")
+    Print("/lvedebug briefstatus - Show login briefing debug status")
     Print("|cFFFFD700/lvedebug errors|r - Show error log")
     Print("|cFFFFD700/lvedebug clearerrors|r - Clear error log")
     Print("/lvedebug ui - Show UI debug info")
@@ -30741,7 +38093,12 @@ function LeafVE:RegisterBadgeHyperlinkHandler()
         panel.nameFS:SetText(badge.name)
         panel.nameFS:SetTextColor(qr, qg, qb)
         panel.qualityFS:SetText("|cFF888888"..GetBadgeQualityLabel(quality).."|r")
-        panel.descFS:SetText(badge.desc)
+        local descText = tostring(badge.desc or "")
+        local unlockedTitle = LeafVE:GetTitleDefinition(badge.id)
+        if unlockedTitle and unlockedTitle.title and unlockedTitle.title ~= "" then
+          descText = descText .. "\n|cFFFFD700Title Unlocked:|r [" .. tostring(unlockedTitle.title) .. "]"
+        end
+        panel.descFS:SetText(descText)
 
         -- Resize to fit content (24 = top padding + icon top offset, 20 = bottom padding)
         local neededHeight = 24 + panel.nameFS:GetHeight() + panel.qualityFS:GetHeight() + panel.descFS:GetHeight() + 20
@@ -30753,11 +38110,10 @@ function LeafVE:RegisterBadgeHyperlinkHandler()
       return
     end
 
-    -- Handle achievement hyperlinks — same panel, populated with achievement data
+    -- Handle achievement hyperlinks Ã¢â‚¬â€ same panel, populated with achievement data
     local achId = string.match(link, "^leafve_ach:(.+)$")
     if achId then
-      local achData = LeafVE_AchTest and LeafVE_AchTest.GetAchievementMeta and
-                      LeafVE_AchTest.GetAchievementMeta(achId)
+      local achData = LeafVE:GetAchievementMeta(achId)
       if achData then
         local panel = GetOrCreateBadgeInfoPanel()
 
@@ -30791,7 +38147,7 @@ end
 -- STARTUP MESSAGE
 -------------------------------------------------
 Print("|cFF2DD35CLeaf Village Legends|r v"..LeafVE.version.." loaded!")
-Print("Type |cFFFFD700/lve|r or |cFFFFD700/leaf|r to open the UI")
+  Print("Type |cFFFFD700/lve|r to open the UI")
 Print("Type |cFFFFD700/lvedebug|r for debug commands")
 
 if type(LeafVE_RaidCatalogSource) ~= "table" then

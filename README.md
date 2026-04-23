@@ -4,7 +4,7 @@
 
 The Leaf Village Legends addon transforms our guild experience by tracking member contributions, awarding badges, managing leaderboards, and fostering community engagement — all themed around the Naruto-inspired Leaf Village guild hierarchy.
 
-![Version](https://img.shields.io/badge/Version-15.0--green) ![Interface](https://img.shields.io/badge/Interface-3.3.5-blue) ![Language](https://img.shields.io/badge/Language-Lua%205.1-purple)
+![Version](https://img.shields.io/badge/Version-16.0--green) ![Interface](https://img.shields.io/badge/Interface-3.3.5-blue) ![Language](https://img.shields.io/badge/Language-Lua%205.1-purple)
 
 ---
 

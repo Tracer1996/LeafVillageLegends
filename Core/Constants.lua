@@ -1,4 +1,4 @@
-LATEST_VERSION = "15.0"
+LATEST_VERSION = "16.0"
 LEAFVE_STYLE = _G.LeafVE_Styles or {}
 LEAFVE_UI_MODERN = _G.LeafVE_UIModernization or {}
 
