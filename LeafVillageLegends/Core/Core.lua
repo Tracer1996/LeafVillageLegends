@@ -738,14 +738,22 @@ local function LeafVEGetTextHeight(fontString, minimumHeight)
   return height
 end
 
--- Jewelcrafting and Survival intentionally excluded here (not from
+-- Gardening intentionally excluded here (not from
 -- WORK_ORDER_MAIN_PROFESSION_ORDER/WORK_ORDER_SECONDARY_PROFESSION_ORDER,
 -- which drive the separate saved-profession designation picker on the
--- character card -- untouched) -- removes them from the Recipe Browser's
+-- character card -- untouched) -- removes it from the Recipe Browser's
 -- and Live Orders' profession sidebars entirely. Also drives
 -- EnsureWorkOrderCatalog's catalog.byProfession population (see there),
--- so their recipes stop being cataloged at all rather than just being
--- hidden in the UI.
+-- so its recipes stop being cataloged at all rather than just being
+-- hidden in the UI. Gardening plants seeds rather than casting a craft
+-- spell, so unlike Survival/Jewelcrafting below it has no real spellId to
+-- correct its transcription to at all.
+--
+-- Survival and Jewelcrafting are included despite the same transcription
+-- quirk Gardening has (their Atlas-CFM "id" columns hold a spell id, not an
+-- item id) -- SURVIVAL_RECIPE_ITEM_IDS/JEWELCRAFTING_RECIPE_ITEM_IDS plus
+-- EnsureWorkOrderCatalog correct that to a real spellId+itemId pair before
+-- cataloging, so neither needs any further special-casing past that point.
 WORK_ORDER_PROFESSION_ORDER = {
   "Alchemy",
   "Blacksmithing",
@@ -753,7 +761,9 @@ WORK_ORDER_PROFESSION_ORDER = {
   "Enchanting",
   "Engineering",
   "First Aid",
+  "Jewelcrafting",
   "Leatherworking",
+  "Survival",
   "Tailoring",
   "Gathering",
 }
@@ -765,7 +775,9 @@ WORK_ORDER_REQUEST_CATEGORY_ORDER = {
   "Enchanting",
   "Engineering",
   "First Aid",
+  "Jewelcrafting",
   "Leatherworking",
+  "Survival",
   "Tailoring",
   "Gathering",
 }
@@ -22432,6 +22444,16 @@ function CanonicalWorkOrderProfession(name)
   if Lower(trimmed) == "farming" then
     return "Farming"
   end
+  -- Survival, like Farming above, is a valid Work Order profession
+  -- (WORK_ORDER_PROFESSION_ORDER) but intentionally isn't part of the
+  -- separate saved-profession designation picker (WORK_ORDER_MAIN_PROFESSION_
+  -- ORDER/WORK_ORDER_SECONDARY_PROFESSION_ORDER), so CanonicalMainProfession/
+  -- CanonicalSecondaryProfession alone would never recognize it -- without
+  -- this, StoreWorkOrderRecord (and IsValidWorkOrderRecord) would reject
+  -- every Survival order as having an unrecognized profession.
+  if Lower(trimmed) == "survival" then
+    return "Survival"
+  end
   return CanonicalMainProfession(name) or CanonicalSecondaryProfession(name)
 end
 
@@ -24891,6 +24913,345 @@ function AppendGatheringWorkOrderCatalogRecipes(catalog, seen)
   end
 end
 
+-- Survival has no separate recipe item -- Atlas-CFM's own Crafting.lua
+-- transcription (CFMLoot/Data/Tables/Crafting.lua, mirrored into this
+-- addon's Crafting.lua as Survival1/2/3) reuses each recipe's real spell id
+-- as a stand-in "item id" in both id columns of every row. This maps that
+-- real spell id to the real crafted item id, sourced directly from
+-- Atlas-CFM's own spell database (CFMLoot/Data/Tables/Spells.lua,
+-- AtlasCFM.SpellDB.craftspells[id].item) -- the same place Atlas-CFM's own
+-- UI resolves a Survival recipe's icon/name from (GetItemInfo on that real
+-- item, see LootBrowserUI.lua). Used by EnsureWorkOrderCatalog to correct
+-- the transcription before building the catalog recipe, so downstream code
+-- (icons, known-crafter spellId tokens, reagent lookups) never has to
+-- special-case Survival's ambiguous ids again.
+SURVIVAL_RECIPE_ITEM_IDS = {
+  [30004] = 106, -- Slowing Bolas
+  [30006] = 42108, -- Edged Machete
+  [30008] = 42109, -- Iron Spear
+  [30010] = 42110, -- Reinforced Fishing Rod
+  [30013] = 42111, -- Water Trudgers
+  [30015] = 42151, -- Bundle of Shade Wood Sticks
+  [30017] = 42112, -- Sharpened Herb Sickle
+  [30022] = 42113, -- Lined Wintercloak
+  [30024] = 42114, -- Sleek Pinewood Bow
+  [30027] = 42127, -- Superior Healing Salve
+  [30029] = 133, -- Savory Fishing Lure
+  [30031] = 42200, -- Smooth Ironfeather Arrows
+  [30033] = 42120, -- Heavy Duty Machete
+  [30035] = 42121, -- Thorium Edged Machete
+  [30037] = 42122, -- Thorium Spear
+  [30039] = 42124, -- Razor-sharp Skinning Knife
+  [30042] = 42153, -- Bundle of Star Wood Sticks
+  [30045] = 42123, -- Mastercraft Fishing Rod
+  [30050] = 33375, -- Miner's Rucksack
+  [30052] = 33376, -- Herbalist's Knapsack
+  [30054] = 33378, -- Skinner's Carryall
+  [30057] = 33379, -- Cooling Rations Bag
+  [30063] = 42129, -- Major Healing Salve
+  [30065] = 33377, -- Fisherman's Backpack
+  [30067] = 42201, -- Starfeather Arrows
+  [30069] = 36701, -- Oil-Powered Cooker
+  [30071] = 42329, -- Blackmouth Fishing Trap
+  [30073] = 42294, -- Rugged Mining Sack
+  [30078] = 42328, -- Snap Trap
+  [30084] = 42330, -- Firefin Fishing Trap
+  [30086] = 42331, -- Stonescale Fishing Trap
+  [36747] = 2633, -- Jungle Remedy
+  [36749] = 42231, -- Spirited Precision Sickle
+  [36751] = 42232, -- Prospector's Magnifying Lens
+  [36765] = 42149, -- Bundle of Simple Sticks
+  [36766] = 42089, -- Crude Walking Stick
+  [36767] = 42090, -- Crude Machete
+  [36768] = 42091, -- Crude Hatchet
+  [36769] = 42092, -- Crude Hunting Bow
+  [36770] = 42093, -- Copper Lantern
+  [36771] = 42229, -- Simple Slingshot
+  [36772] = 33369, -- Simple Herbalist's Backpack
+  [36773] = 33370, -- Makeshift Rations Bag
+  [36774] = 42233, -- Weak Healing Salve
+  [36785] = 42094, -- Makeshift Knife
+  [36786] = 42095, -- Gardening Gloves
+  [36787] = 42096, -- Crude Fishing Rod
+  [36788] = 42097, -- Hunting Spear
+  [36789] = 42098, -- Gardening Broom
+  [36795] = 42155, -- Nutritious Rations
+  [36796] = 42199, -- Shade Wood Arrows
+  [36797] = 42115, -- Vine Cutter
+  [36798] = 42116, -- Hiking Staff
+  [36799] = 42117, -- Tree Hatchet
+  [36800] = 42152, -- Bundle of Tropical Sticks
+  [36801] = 42118, -- Sunshade Hat
+  [36802] = 33374, -- Thick Rations Bag
+  [36803] = 42119, -- Warped Recurve Bow
+  [36804] = 42130, -- Spiced Berries
+  [36805] = 42131, -- Aromatic Berries
+  [36806] = 42230, -- Advanced Camouflage
+  [36807] = 42156, -- Emergency Parachute
+  [36808] = 42128, -- Stabilizing Healing Salve
+  [36809] = 145, -- Premium Fishing Lure
+  [36842] = 42099, -- Oakwood Bow
+  [36843] = 114, -- Simple Fishing Lure
+  [36844] = 42125, -- Healing Salve
+  [36845] = 33371, -- Fishing Bag
+  [36846] = 33372, -- Skinner's Pack
+  [36847] = 42100, -- Gardening Pitchfork
+  [36848] = 42101, -- Murloc Scale Coat
+  [36849] = 42150, -- Bundle of Bright Wood Sticks
+  [36850] = 42154, -- Sturdy Net
+  [36851] = 42102, -- Sturdy Cane
+  [36852] = 42103, -- Sturdy Knife
+  [36853] = 42104, -- Sturdy Blade
+  [36854] = 42105, -- Reliable Fishing Rod
+  [36855] = 42132, -- Throwable Net
+  [36856] = 42106, -- Hat of the Junior Chef
+  [36857] = 42107, -- Treasure Compass
+  [36858] = 42198, -- Bright Wood Arrows
+  [36859] = 33373, -- Studded Rations Bag
+  [36860] = 42126, -- Potent Healing Salve
+  [36861] = 125, -- Spicy Fishing Lure
+  [46064] = 6182, -- Dim Torch
+  [46066] = 65028, -- Murloc's Flippers
+  [46068] = 60001, -- Cleaning Cloth
+  [46072] = 51283, -- Traveler's Tent
+  [46073] = 51282, -- Fishing Boat
+  [46075] = 2714, -- Iron Lantern
+  [46077] = 65030, -- Repaired Electro-Lantern
+  [47101] = 7009, -- Survivalist's Skinning Knife
+  [47103] = 7010, -- Driftwood Fishing Pole
+}
+
+-- Jewelcrafting also has no separate recipe item -- same transcription
+-- quirk as Survival above (its Atlas-CFM "id" columns hold a spell id, not
+-- an item id), sourced the same way from Atlas-CFM's own spell database
+-- (CFMLoot/Data/Tables/Spells.lua, AtlasCFM.SpellDB.craftspells[id].item).
+JEWELCRAFTING_RECIPE_ITEM_IDS = {
+  [93] = 156, -- Refined Dwarven Necklace
+  [104] = 56112, -- Ancient Dwarven Gemstone
+  [29728] = 55150, -- Rough Gritted Paper
+  [29730] = 55156, -- Rough Copper Ring
+  [29732] = 55157, -- Copper Bangle
+  [34758] = 42205, -- Kodoheart Necklace
+  [36581] = 42195, -- Ceremonial Furbolg Pendant
+  [36591] = 42191, -- Crystalized Topaz Gemstone
+  [36905] = 55060, -- Grandstaff of the Shen'dralar Elder
+  [41001] = 55158, -- Bright Copper Ring
+  [41003] = 81030, -- Malachite Ring
+  [41005] = 55159, -- Sturdy Copper Ring
+  [41007] = 55160, -- Inlaid Copper Ring
+  [41009] = 81092, -- Copper Staff
+  [41011] = 55161, -- Encrusted Copper Bangle
+  [41013] = 55162, -- Lesser Fortification Ring
+  [41015] = 55163, -- Tigercrest Ring
+  [41017] = 55165, -- Small Pearlstone Staff
+  [41019] = 55166, -- Amber Ring
+  [41021] = 55167, -- Azure Ring
+  [41023] = 81031, -- Bright Copper Necklace
+  [41025] = 55168, -- Softglow Ring
+  [41027] = 55170, -- Topaz Studded Ring
+  [41029] = 55151, -- Coarse Gritted Paper
+  [41031] = 81032, -- Rough Gemstone Cluster
+  [41033] = 55171, -- Lavish Gemmed Necklace
+  [41035] = 55172, -- Amberstone Pendant
+  [41037] = 55173, -- Deepmist Choker
+  [41039] = 55174, -- Rough Bronze Ring
+  [41041] = 41308, -- Shimmering Bronze Ring
+  [41043] = 41309, -- Amber Orb
+  [41045] = 55175, -- Encrusted Bronze Staff
+  [41047] = 55176, -- Earthrock Loop
+  [41049] = 41310, -- Bronze Cuffed Bangles
+  [41051] = 41311, -- Shadowgem Band
+  [41053] = 41313, -- Bronze Scepter
+  [41055] = 41312, -- Pendant of Midnight
+  [41057] = 41314, -- Agatestone Crown
+  [41059] = 41315, -- Moonlight Staff
+  [41061] = 41316, -- Binding Signet
+  [41063] = 41318, -- Enchanted Bracelets
+  [41065] = 41320, -- Coarse Gemstone Cluster
+  [41067] = 41319, -- Rough Silver Ring
+  [41069] = 41325, -- Silver Medallion
+  [41071] = 41329, -- Ring of Purified Silver
+  [41081] = 41332, -- Rough Iron Ring
+  [41083] = 41331, -- Rough Gold Ring
+  [41085] = 41323, -- Emberstone Studded Ring
+  [41087] = 41321, -- Rough Thorium Ring
+  [41089] = 41324, -- Mithril Blackstone Necklace
+  [41091] = 55154, -- Dense Gritted Paper
+  [41093] = 55256, -- Radiant Thorium Twilight
+  [41095] = 55269, -- Glyph Codex
+  [41097] = 55271, -- Spellweaver Rod
+  [41099] = 55268, -- Quicksilver Whirl
+  [41101] = 55273, -- Crystalweft Bracers
+  [41103] = 55267, -- Ethereal Frostspark Crown
+  [41105] = 41330, -- Pendant of Arcane Radiance
+  [41201] = 55152, -- Heavy Gritted Paper
+  [41203] = 41344, -- Heavy Gemstone Cluster
+  [41205] = 55144, -- Goldfire Crystal Bracelet
+  [41207] = 55142, -- Quartz Halo
+  [41209] = 55148, -- Staff of Blossomed Jade
+  [41211] = 55143, -- Jade Harmony Circlet
+  [41213] = 55145, -- Goldenshade Quartz Crown
+  [41215] = 55146, -- The Golden Goblet
+  [41217] = 55147, -- Powerful Citrine Pendant
+  [41219] = 41322, -- Rough Mithril Ring
+  [41221] = 55141, -- Ironsun Citrine Ring
+  [41223] = 41340, -- Shimmering Gold Necklace
+  [41225] = 41342, -- Ironbloom Ring
+  [41227] = 41343, -- Ornate Mithril Scepter
+  [41229] = 55153, -- Solid Gritted Paper
+  [41231] = 55164, -- Minor Trollblood Ring
+  [41233] = 41341, -- Rough Truesilver Ring
+  [41235] = 55196, -- Aquamarine Pendant
+  [41237] = 56020, -- Solid Gemstone Cluster
+  [41239] = 41346, -- Greater Binding Signet
+  [41241] = 41345, -- Royal Gemstone Staff
+  [41243] = 41349, -- Emberstone Idol
+  [41245] = 41347, -- Runed Truesilver Ring
+  [41247] = 55169, -- Small Pearl Ring
+  [41249] = 81093, -- Bulky Copper Ring
+  [41251] = 55258, -- Blue Starfire
+  [41253] = 55265, -- Emerald Monarch's Glow
+  [41255] = 55259, -- Sapphire Luminescence
+  [41259] = 55272, -- Arcanum Baton
+  [41261] = 55266, -- Sunburst Tiara
+  [41263] = 56023, -- Ocean's Gaze
+  [41265] = 55260, -- Starry Thorium Band
+  [41267] = 56032, -- Ruby Ring of Ruin
+  [41269] = 56031, -- Encrusted Gemstone Ring
+  [41271] = 56033, -- Pure Gold Ring
+  [41273] = 55199, -- Prism Amulet
+  [41275] = 55202, -- Gemmed Citrine Pendant
+  [41277] = 55197, -- Starforge Amulet
+  [41279] = 55200, -- Voidheart Charm
+  [41281] = 55204, -- Runebound Amulet
+  [41283] = 55195, -- Astral Amulet
+  [41285] = 56034, -- Shimmering Moonstone Tablet
+  [41287] = 56035, -- Stormcloud Sigil
+  [41303] = 55264, -- Massive Jewel Circlet
+  [41305] = 56036, -- Golden Scepter of Authority
+  [41307] = 55243, -- Gemkeeper's Folio
+  [41309] = 55261, -- Stellar Ruby Ring
+  [41311] = 55178, -- Stellar Gemguards
+  [41313] = 55241, -- Garnet Guardian Staff
+  [41315] = 55198, -- Moonlit Charm
+  [41317] = 55263, -- Twilight Opal Cascade
+  [41321] = 56037, -- Gleaming Chain
+  [41323] = 56038, -- Talisman of Stone
+  [41325] = 56039, -- Medallion of Flame
+  [41327] = 56040, -- Gleaming Silver Necklace
+  [41329] = 56041, -- Ring of The Turtle
+  [41331] = 56042, -- Gem Encrusted Choker
+  [41333] = 56043, -- Goldcrest Amulet
+  [41335] = 56044, -- Shining Copper Cuffs
+  [41337] = 56045, -- Dawnbright Cuffs
+  [41339] = 56046, -- Circlet of Dampening
+  [41348] = 55180, -- Crystalfire Armlets
+  [41350] = 55228, -- Cinderfall Band
+  [41352] = 55242, -- Opaline Illuminator
+  [41354] = 55255, -- Skyfire Jewel
+  [41356] = 55244, -- Gemstone Compendium
+  [41541] = 56048, -- Dazzling Aquamarine Loop
+  [41546] = 56049, -- Alluring Citrine Choker
+  [41548] = 56050, -- Elaborate Golden Bracelets
+  [41550] = 56051, -- Heart of the Sea
+  [41552] = 56052, -- Staff of Gallitrea
+  [41554] = 56053, -- Golden Jade Ring
+  [41556] = 56054, -- Delicate Mithril Amulet
+  [41558] = 56055, -- Draenethyst Baton
+  [41560] = 55316, -- Ebon Ring
+  [41562] = 55317, -- The King's Conviction
+  [41564] = 55318, -- Shadowfall Jewel
+  [41566] = 55319, -- Ocean's Wrath
+  [41568] = 55320, -- Dazzling Moonstone Band
+  [41570] = 55321, -- Harpy Talon Ring
+  [41572] = 55322, -- Centaur Hoof Circlet
+  [41574] = 55323, -- Ogre Bone Band
+  [41579] = 55325, -- Marine's Demise
+  [41581] = 55326, -- Serpent's Coil Staff
+  [41583] = 55327, -- Farraki Ceremony Totem
+  [41585] = 55328, -- Sphinx's Wisdom Staff
+  [41587] = 55329, -- Gloomweed Bindings
+  [41589] = 56047, -- Crystal Earring
+  [41591] = 55324, -- Spectre Shade Ring
+  [41601] = 56002, -- Sharpened Citrine Gemstone
+  [41603] = 56004, -- Radiant Ember Gemstone
+  [41605] = 56006, -- Glowing Ruby Gemstone
+  [41607] = 56003, -- Shimmering Aqua Gemstone
+  [41609] = 56015, -- Azerothian Ruby Gemstone
+  [41611] = 56012, -- Gloomy Diamond Gemstone
+  [41613] = 56013, -- Flawless Black Gemstone
+  [41615] = 56016, -- Arcane Emerald Gemstone
+  [41617] = 56017, -- Tempered Azerothian Gemstone
+  [41619] = 56014, -- Stunning Imperial Gemstone
+  [41621] = 56018, -- Enchanted Emerald Gemstone
+  [41623] = 56058, -- Pure Shining Moonstone
+  [41625] = 56010, -- Beautiful Diamond Gemstone
+  [41627] = 56000, -- Pristine Crystal Gemstone
+  [41629] = 56001, -- Gleaming Jade Gemstone
+  [41631] = 56005, -- Illuminated Gemstone
+  [41633] = 56056, -- Burning Star Gemstone
+  [41635] = 56008, -- Brilliant Opal Gemstone
+  [41637] = 56009, -- Elegant Emerald Gemstone
+  [41639] = 56007, -- Shining Sapphire Gemstone
+  [41641] = 56011, -- Unstable Arcane Gemstone
+  [41643] = 56057, -- Glittering Sapphire Gemstone
+  [41696] = 56059, -- Shimmering Diamond Band
+  [41698] = 56060, -- Crown of Molten Ascension
+  [41700] = 56061, -- Embergem Cuffs
+  [41702] = 56062, -- Blackwing Signet of Command
+  [41704] = 56063, -- Talisman of Hinderance
+  [41706] = 56064, -- Mastercrafted Diamond Crown
+  [41708] = 56065, -- Opalstone Circle
+  [41710] = 56066, -- Deep Sapphire Circlet
+  [41712] = 56067, -- Dark Iron Signet Ring
+  [41714] = 56068, -- Opal Guided Bangles
+  [41716] = 56069, -- Crown of Elegance
+  [41718] = 56070, -- Ornate Mithril Bracelets
+  [41720] = 56071, -- Regal Twilight Staff
+  [41722] = 56072, -- Pendant of Instability
+  [41724] = 56073, -- Ornament of Restraint
+  [41726] = 55330, -- Hydrathorn Bracers
+  [41728] = 55331, -- Blackrock Ironclamps
+  [41730] = 55332, -- Monastery Emberbrace
+  [41732] = 55333, -- Shadowmoon Orb
+  [41734] = 55334, -- Fangclaw Relic
+  [41736] = 55335, -- Netherbane Rod
+  [41738] = 55336, -- Marine Root
+  [41740] = 55337, -- Mistwood Tiara
+  [41742] = 55338, -- Venomspire Diadem
+  [41744] = 55339, -- Bloodfire Circlet
+  [41746] = 55340, -- Shadowforged Eye
+  [41748] = 55341, -- Totem of Self Preservation
+  [41750] = 55210, -- Facetted Moonstone Brooch
+  [41752] = 55211, -- Obsidian Brooch
+  [41754] = 55212, -- Smoldering Brooch
+  [41756] = 55213, -- Vitriol Brooch
+  [41760] = 56074, -- Graceful Agate Gemstone
+  [41762] = 56075, -- Dreary Opal Gemstone
+  [41764] = 56077, -- Resurged Topaz Gemstone
+  [41768] = 56076, -- Resilient Arcane Gemstone
+  [41770] = 56019, -- Dense Gemstone Cluster
+  [41774] = 56090, -- Spellweaver Pendant
+  [41776] = 56091, -- Ring of Midnight
+  [41778] = 56092, -- Stormcloud Shackles
+  [41780] = 56093, -- Stormcloud Signet
+  [41782] = 56094, -- Golden Runed Ring
+  [41784] = 56095, -- Mana Binding Signet
+  [41786] = 56089, -- Ornate Mithril Crown
+  [41788] = 55359, -- Blazefury Circlet
+  [41790] = 55360, -- Ring of Unleashed Potential
+  [41792] = 55361, -- Empowered Domination Rod
+  [41794] = 55362, -- Orb of Clairvoyance
+  [41796] = 55363, -- Grail of Forgotten Memories
+  [41798] = 55364, -- Guardbreaker Charm
+  [41800] = 55365, -- Rudeus' Focusing Cane
+  [41802] = 55366, -- Spire of Channeled Power
+  [41804] = 55367, -- Bindings of Luminance
+  [41806] = 55368, -- Crown of the Illustrious Queen
+  [41808] = 56096, -- Mastercrafted Diamond Bangles
+  [41821] = 61818, -- Gorgeous Mountain Gemstone
+}
+
 function LeafVE:EnsureWorkOrderCatalog()
   if self.workOrderCatalog then
     return self.workOrderCatalog
@@ -24927,6 +25288,24 @@ function LeafVE:EnsureWorkOrderCatalog()
             local itemId = itemIdRow3 or itemIdRow2
             local spellId = spellIdRow2 or spellIdRow3
             local profession = currentProfession
+
+            -- Survival/Jewelcrafting have no separate recipe item, so the
+            -- parsed "itemId" above is actually the real spell id reused as
+            -- a stand-in (see SURVIVAL_RECIPE_ITEM_IDS/
+            -- JEWELCRAFTING_RECIPE_ITEM_IDS) -- reinterpret both before
+            -- building the recipe so the rest of this pipeline (icons,
+            -- known-crafter spellId tokens, ApplyWorkOrderSpellInfo below)
+            -- sees real ids.
+            if itemId and not spellId then
+              local realItemIdMap = (profession == "Survival" and SURVIVAL_RECIPE_ITEM_IDS)
+                or (profession == "Jewelcrafting" and JEWELCRAFTING_RECIPE_ITEM_IDS)
+                or nil
+              if realItemIdMap then
+                spellId = itemId
+                itemId = realItemIdMap[spellId]
+              end
+            end
+
             if (itemId or spellId) and profession and catalog.byProfession[profession] then
               local recipeName = ExtractWorkOrderRecipeName(row[4]) or ExtractWorkOrderRecipeName(row[3]) or ExtractWorkOrderRecipeName(row[5])
               local recipe = {
@@ -24940,13 +25319,18 @@ function LeafVE:EnsureWorkOrderCatalog()
                 sourceTable = tableKey,
               }
               if recipe.name and recipe.name ~= "" then
-                -- Jewelcrafting/Survival/Gardening data has no real spellId (see the
-                -- Atlas-CFM transcription note above) -- letting ApplyWorkOrderSpellInfo's
-                -- itemId-based fallback run for these risks matching an unrelated vanilla
-                -- recipe that happens to reuse the same numeric itemId (its own fallback
-                -- returns candidates[1] even when no name matches), poisoning the recipe
-                -- with a bogus spellId/reagent list. Skip it for these three professions.
-                if profession ~= "Jewelcrafting" and profession ~= "Survival" and profession ~= "Gardening" then
+                -- Gardening data has no real spellId at all (it plants seeds
+                -- rather than casting a craft spell -- see the header comment
+                -- on WORK_ORDER_PROFESSION_ORDER) -- letting
+                -- ApplyWorkOrderSpellInfo's itemId-based fallback run for it
+                -- risks matching an unrelated vanilla recipe that happens to
+                -- reuse the same numeric itemId (its own fallback returns
+                -- candidates[1] even when no name matches), poisoning the
+                -- recipe with a bogus spellId/reagent list. Skip it for that
+                -- profession only -- Survival/Jewelcrafting's ids were
+                -- already corrected to real ones above, so it's safe to run
+                -- them through the same generic path as every other profession.
+                if profession ~= "Gardening" then
                   self:ApplyWorkOrderSpellInfo(recipe)
                 end
                 recipe.icon = self:GetWorkOrderResultIcon(recipe.itemId, recipe.spellId, recipe.icon)
